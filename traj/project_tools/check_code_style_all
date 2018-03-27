@@ -1,0 +1,49 @@
+#!/bin/bash
+set -eu
+
+# check if autopep8 and flake8 are installed
+condition=$(which autopep8 2>/dev/null | grep -v "not found" | wc -l)
+if [ $condition -eq 0 ]; then
+	echo "autopep8 is not installed"
+	echo "pip install --user autopep8"
+	exit 1
+fi
+condition=$(which flake8 2>/dev/null | grep -v "not found" | wc -l)
+if [ $condition -eq 0 ]; then
+	echo "flake8 is not installed"
+	echo "pip install --user flake8"
+	exit 1
+fi
+
+CI="${CI:-false}"
+DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
+
+if [[ "$@" == "--fix" ]]
+then
+    export TORQGCS_STYLE_FIX=1
+fi
+
+
+# install git pre-commit hook
+HOOK_FILE="$DIR/../.git/hooks/pre-commit"
+if [ ! -f $HOOK_FILE ] && [ "$CI" != "true" ]; then
+	echo ""
+	echo -e "\033[31mNinja tip: add a git pre-commit hook to automatically check code style\033[0m"
+	echo -e "Would you like to install one now? (\033[94mcp ./project_tools/pre-commit .git/hooks/pre-commit\033[0m): [y/\033[1mN\033[0m]"
+
+	read user_cmd
+	if [ "$user_cmd" == "y" ]; then
+		echo -e "copying ./project_tools/pre-commit -> .git/hooks/pre-commit"
+		cp $DIR/pre-commit $HOOK_FILE
+		echo -e "\033[94mGreat, hook installed!\033[0m (checking style now)"
+	else
+		echo -e "\033[94mOk, I will remind you again later!\033[0m (checking style now)"
+	fi
+fi
+
+${DIR}/files_to_check_code_style | xargs -n 1 -P 8 -I % ${DIR}/check_code_style %
+
+if [ $? -eq 0 ]; then
+    echo "Format checks passed"
+    exit 0
+fi

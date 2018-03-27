@@ -1,0 +1,27 @@
+<package>
+  <name>px4_msgs</name>
+  <version>0.1.0</version>
+  <description>This package contains messages, services and action definitions needed by PX4-ROS and nodes communicating with it.</description>
+  <maintainer email="mereweth@jpl.nasa.gov">Gene Merewether</maintainer>
+
+  <license>BSD</license>
+
+  <!-- <url type="bugtracker"></url> -->
+
+  <author>Gene Merewether</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>roscpp</build_depend>
+  <run_depend>roscpp</run_depend>
+
+  <build_depend>std_msgs</build_depend>
+  <run_depend>std_msgs</run_depend>
+
+  <build_depend>message_generation</build_depend>
+  <run_depend>message_runtime</run_depend>
+
+  <export>
+    
+  </export>
+</package>

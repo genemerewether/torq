@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format2.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="2">
+  <name>torq_gcs</name>
+  <version>0.0.0</version>
+  <description>
+    Python nodes for quadrotor trajectory generation
+  </description>
+  <author email="mereweth@jpl.nasa.gov">Gene Merewether</author>
+  <maintainer email="mereweth@jpl.nasa.gov">Gene Merewether</maintainer>
+  <license>unlicensed - JPL and Google only</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <exec_depend>message_runtime</exec_depend>
+
+  <exec_depend>rospy</exec_depend>
+
+  <depend>rviz</depend>
+  <depend>px4_msgs</depend>
+
+  <!-- depend>view_controller_msgs</depend -->
+  <!-- exec_depend>rviz_animated_view_controller</depend -->
+  <!-- exec_depend>spacenav_node</depend -->
+
+</package>

@@ -1,0 +1,13 @@
+state_info:
+  t: {units: 'ROS2 time, seconds'}
+  x:
+    field_order: [x, y, z, q_w, q_x, q_y, q_z]
+    units: [meters, meters, meters, quaternion w, quaternion x, quaternion y, quaternion
+        z]
+states:
+- t: 1491271167.701663
+  x: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
+- t: 1491271200.365737
+  x: [1.0, 0.0, 0.0, 0.70710678, 0.70710678, 0.0, 0.0]
+- t: 1491271220.030433
+  x: [2.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]

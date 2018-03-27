@@ -1,0 +1,23 @@
+#!/bin/bash
+
+FILE=$1
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+
+if [ -f "$FILE" ]; then
+	${DIR}/fix_code_style --diff $FILE | grep --quiet fixed
+	if [[ $? -eq 0 ]]; then
+		${DIR}/fix_code_style $FILE > $FILE.pretty
+
+		echo
+		git --no-pager diff --no-index --minimal --histogram --color=always $FILE $FILE.pretty
+		rm -f $FILE.pretty
+		echo
+
+		if [[ $TORQGCS_STYLE_FIX -eq 1 ]]; then
+			${DIR}/fix_code_style --in-place $FILE
+		else
+			echo $FILE 'bad formatting, please run "make format" or "./project-tools/fix_code_style' $FILE'"'
+			exit 1
+		fi
+	fi
+fi

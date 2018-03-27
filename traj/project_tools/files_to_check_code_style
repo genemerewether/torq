@@ -1,0 +1,28 @@
+#!/bin/bash
+set -eu
+
+PATTERN="-e ."
+
+if [ $# -gt 0 ]
+then
+    PATTERN="$1"
+fi
+
+# show only top of each ignored directory
+# git ls-files --directory -o -i --exclude-per-directory=.gitignore
+
+# must strip trailing slash for find prune to work properly
+IGNORED=(`git ls-files --directory -o --ignored --exclude-per-directory=.gitignore | tr -d "\/$"`)
+# must add leading ./ for find prune to work properly
+IGNORED=`printf '%s\n' "${IGNORED[@]}" | awk '{print " -o -path ./" $0}' | tr -d '\n'`
+
+#echo "-path matlab ${IGNORED}"
+#exit
+
+# to exclude subfolders:
+# \( -path PATH -path PATH2 \) -prune -o
+# the print in the last line is necessary
+# otherwise both sides of the -o are printed
+exec find . \
+    \( -path matlab ${IGNORED} \) -prune -o \
+    -type f \( -name "*.py" \) -print | grep $PATTERN

@@ -1,0 +1,6 @@
+--index-url https://pypi.python.org/simple/
+
+# installs traj in editable mode
+-e .
+
+-r minsnap/requirements.txt

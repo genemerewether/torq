@@ -1,0 +1,17 @@
+*~
+.DS_Store
+*.pyc
+*.orig
+*.ply
+*.stl
+*.obj
+*.proto
+*.traj
+*.yaml
+*.bag
+models
+mesh
+trajectories
+sdfs/*
+.cache
+start_script
