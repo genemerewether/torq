@@ -30,6 +30,10 @@ from trajectory import trajectoryBase
 from poly_astro import poly_astro
 from data_track import data_track
 
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from mpl_toolkits.mplot3d import Axes3D
+
 from minsnap import exceptions
 
 #
@@ -39,7 +43,7 @@ class traj_qr(trajectoryBase):
 
     def __init__(self,waypoints,costs=None, order=dict(x=9, y=9, z=9, yaw=5),
                 der_fixed=None, seed_times=None, seed_avg_vel=0.2, path_weight=None,
-                curv_func=False,n_samp = 100,yaw_to_traj=True):
+                curv_func=False,n_samp = 100,yaw_to_traj=True,exit_on_feasible=False):
         """
 
         """
@@ -55,6 +59,8 @@ class traj_qr(trajectoryBase):
         self.max_viol = 0.0
 
         self.feasible = False
+        self.exit_on_feasible = exit_on_feasible
+        self.esdf_feasibility_check = False
 
         self.c_leg_poly = None
 
@@ -62,6 +68,9 @@ class traj_qr(trajectoryBase):
 
         self.optimise_yaw_only = False
         self.yaw_to_traj = yaw_to_traj
+
+        self.fig = None
+        self.ax = None
 
         """ Costs """
         if costs is None:
@@ -184,11 +193,17 @@ class traj_qr(trajectoryBase):
         if not replan or self.c_leg_poly is None:
             self.initial_guess()
 
+        if not replan:
+            # Reset hessian Inverse
+            self.H_inv = np.identity(self.n_coeff)
+
         # Optimise
         self.optimise()
 
         # Compute the trajectory
         self.get_trajectory()
+
+        print("\nCOMPLETED RUN_ASTRO\n")
 
     def run_astro_with_increasing_weight(self,weights=1,weight_factor=100,reset_count=False):
 
@@ -467,7 +482,7 @@ class traj_qr(trajectoryBase):
             # mat_inv2 = sp.linalg.pinv(mat)
             mat_inv = sp.linalg.pinv2(mat)
 
-            c_start[key][p_index] = np.array(np.matrix(mat_inv)*np.matrix(bc[key]).T)
+            c_start[key][p_index] = np.array(np.matrix(mat_inv)*np.matrix(bc[key]).T)[:,0]
 
         # store the result
         if self.optimise_yaw_only:
@@ -674,7 +689,7 @@ class traj_qr(trajectoryBase):
                 P_BC_C[key][s_ind[i]:s_ind[i+1],N*i:N*(i+1)] = (rescale_vec_bc*np.ones(N)) * P_BC_C[key][s_ind[i]:s_ind[i+1],N*i:N*(i+1)]
 
                 # Rescale continuity conditions
-                if n_seg>0:
+                if n_seg>1:
                     if i == 0:
                         P_BC_C[key][s_ind[-1]:(s_ind[-1]+n_der[key]),N*i:N*(i+1)] = (rescale_vec[0:n_der[key],:]*np.ones(N)) * P_BC_C[key][s_ind[-1]:(s_ind[-1]+n_der[key]),N*i:N*(i+1)]
 
@@ -944,7 +959,7 @@ class traj_qr(trajectoryBase):
         self.initial_guess()
 
         # optimise yaw only
-        self.optimise()
+        # self.optimise()
 
         self.optimise_yaw_only = False
 
@@ -1027,6 +1042,8 @@ class traj_qr(trajectoryBase):
         cost_step_non_convex = dict()
         cost_grad_non_convex = dict()
         max_viol = 0.0
+        feasible = True # initilise
+        esdf_check_all_feasible = False # used if an esdf collision checker is used
 
         for key in c_leg_poly.keys():
             N = np.size(c_leg_poly[key])
@@ -1037,19 +1054,27 @@ class traj_qr(trajectoryBase):
         # Compute cost and gradient
         path_cost, path_cost_grad, path_cost_curv = self.compute_path_cost_grad(c_leg_poly,doGrad=doGrad,doCurv=doCurv)
 
+        grad_mult = 1.0
+        # # Zero out path cost for testing (uncomment below)
+        # if np.size(self.constraint_list) is not 0:# and False:
+        #     path_cost = 0.0
+        #     grad_mult = 0.0
+
         # Add to total cost
         cost = path_cost
         cost_grad = path_cost_grad
         cost_curv = dict()
         if doCurv:
             for key in path_cost_curv.keys():
-                cost_curv[key] = np.diag(path_cost_curv[key])#*0.0
-                # cost_grad[key] *= 0.0
+                cost_curv[key] = np.diag(path_cost_curv[key])*grad_mult
+
+        for key in cost_grad.keys(): cost_grad[key] *= grad_mult
 
         # if doCurv:
         #     # Using curvature to set gradient step size
         #     cost_step = path_cost_grad./path_cost_curv
         #     cost_step[np.isnan(cost_step)] = 0
+
 
         # Don't check constraints if only optimising yaw
         if not self.optimise_yaw_only:
@@ -1067,6 +1092,12 @@ class traj_qr(trajectoryBase):
                                                         doCurv=doCurv,
                                                         path_cost = path_cost)
 
+                # Check feasibility - for all constriants
+                feasible = feasible and self.check_if_feasible(i)
+
+                if self.constraint_list[i].constraint_type is "esdf_check":
+                    esdf_check_all_feasible = self.check_if_feasible(i)
+                    continue
 
                 if doGrad:
                     print("Obstacle cost for constraint {}, of type {} on der: {} is {}".format(i,self.constraint_list[i].constraint_type,self.constraint_list[i].der, constr_cost))
@@ -1154,6 +1185,22 @@ class traj_qr(trajectoryBase):
         if doGrad:
             # Only update the class variable when also computing gradient (i.e. not for the line search)
             self.max_viol = max_viol
+
+
+        # Set feasible flag if all constriants are feasible
+        if esdf_check_all_feasible:
+            self.feasible = True
+            if self.exit_on_feasible:
+                print("ESDF Check: All constraints are feasible (within inflation region).")
+        else:
+            if feasible:
+                if self.exit_on_feasible:
+                    print("All constraints are feasible (within inflation region).")
+                self.feasible = True
+            else:
+                self.feasible = False
+
+        # self.first_in_iteration = False
 
         return cost, cost_grad, cost_curv, cost_step
 
@@ -1352,11 +1399,12 @@ class traj_qr(trajectoryBase):
         error = 0.0
 
         for key in param_in.keys():
-            error += np.abs(np.mean(P_BC_C[key].dot(param_in[key]) -bc[key]))
+
+            error += np.sqrt(np.mean(P_BC_C[key].dot(param_in[key]) -bc[key])**2)#np.mean(np.abs(P_BC_C[key].dot(param_in[key]) -bc[key]))
 
         return error
 
-    def optimise(self, c_leg_poly=None, mutate_iter=4):
+    def optimise(self, c_leg_poly=None, mutate_iter=4,run_one_iteration=False,mutate_serial=-1,use_quadratic_line_search=None):
         """
         Main optimisation function. BFGS quasi-Newton gradient descent solution
         using a Armijo condition on a backtracking line search.
@@ -1371,6 +1419,8 @@ class traj_qr(trajectoryBase):
             optim_opt: Dictionary storing optimisation settings
             H_inv: the Hessian inverse matrix from the BFGS method. 2D np.array squared by N*n_seg*n_dim
             n_coeff: total number of coefficients
+
+            mutate_serial - flag and number: -1 to deactive, if >0 then indicates the number of iterations before mutating (randomly modifying the solution)
 
         Methods:
             self:
@@ -1395,7 +1445,16 @@ class traj_qr(trajectoryBase):
             data_track: Class storing the data through the optimisation
         """
 
+        # Initialise feasible flag to false
+        self.feasible = False
+
         start_time = time.time()
+
+        if use_quadratic_line_search:
+            for constraint in self.constraint_list:
+                if constraint.keep_out and (constraint.constraint_type is not "esdf_check"):
+                    # Deactivate if there are any non-convex constraints
+                    use_quadratic_line_search = False
 
 
         if c_leg_poly is None:
@@ -1410,48 +1469,91 @@ class traj_qr(trajectoryBase):
         # initialise
         new_poly = dict()
         poly_step = dict()
+        pre_step = dict()
         #constr_cost_store = np.zeros(np.size(self.constraint_list))
+
+        # self.first_in_iteration = True
 
         # Compute cost gradient and step for path and constraints
         cost, cost_grad, cost_curv, cost_step = self.total_cost_grad_curv(c_leg_poly, doGrad=True,doCurv=self.curv_func,num_grad=True)
 
         # Initialisation
         exitflag = False
-        iteration = 0
+        if not run_one_iteration:
+            self.iterations = 0
+            self.mutated = False
         use_cost_step = False
+
+        if use_quadratic_line_search is None:
+            if self.curv_func or len(self.constraint_list)<1:
+                use_quadratic_line_search = True
+            else:
+                use_quadratic_line_search = False
+
+        if self.feasible:
+            # print("Trajectory feasible before first iteration")
+            if self.exit_on_feasible:
+                print("Exiting because trajectory is feasible before first iteration.\n")
+                exitflag = True
 
         # Start Optimisation loop
         while not exitflag:
+            self.first_in_iteration = True
             if self.curv_func:
                 # Use curvature computed step
                 new_poly = self.stack_vector(c_leg_poly) - step_size*self.stack_vector(cost_step)
                 use_cost_step = True
+                # delta_poly = - step_size*self.stack_vector(cost_step)
                 # self.analyse_convexity(c_leg_poly,self.unstack_vector(- step_size*self.stack_vector(cost_step)))
             else:
                 # Take step along the gradient descent direction (BFGS, quasi-Newton optimisation)
                 new_poly = self.stack_vector(c_leg_poly) - step_size*self.H_inv.dot(self.stack_vector(cost_grad))
+
+                # delta_poly = - step_size*self.H_inv.dot(self.stack_vector(cost_grad))
                 # self.analyse_convexity(c_leg_poly,self.unstack_vector(- step_size*self.H_inv.dot(self.stack_vector(cost_grad))))
+
+
             # Unstack vector
             new_poly = self.unstack_vector(new_poly)
+            # delta_poly = self.unstack_vector(delta_poly)
 
+            # if not self.curv_func or len(self.constraint_list)>0:
+            #
+            #     if self.curv_func:
+            #         self.analyse_convexity(c_leg_poly,self.unstack_vector(- step_size*self.stack_vector(cost_step)))
+            #     else:
+            #         self.analyse_convexity(c_leg_poly,self.unstack_vector(- step_size*self.H_inv.dot(self.stack_vector(cost_grad))))
+            #
+            #     # self.c_leg_poly = new_poly
+            #     # self.get_trajectory()
+            #     # self.plot()
+            #     # # plt.show()
+            #     # self.c_leg_poly = c_leg_poly
+            #     # self.get_trajectory()
+            #     import pdb; pdb.set_trace()
 
             # Check the step is doing what it should
             # TODO (Remove for speed)
             # check_cost = self.total_cost_grad_curv(new_poly, doGrad=False,doCurv=False)[0]
             # print("check cost {} is {}".format(iteration,check_cost))
+            for key in new_poly.keys(): pre_step[key] = new_poly[key] - c_leg_poly[key]
 
             new_poly = self.enforce_BCs(new_poly)
             err = self.check_boundary_conditions(new_poly)
+            # import pdb; pdb.set_trace()
+            # delta_poly = self.enforce_BCs(delta_poly,input_type="grad")
+            # err_delt = self.check_boundary_conditions(self.unstack_vector(self.stack_vector(c_leg_poly)+self.stack_vector(pre_step)))
 
             bc_count = 0
 
             while np.abs(err) > 1e-7:
                 # Enforce boundary conditions
+                # if np.abs(err) > 1e-5:
                 print("reinforcing BC for {} iteration. Err is {}".format(bc_count+1,err))
                 new_poly = self.enforce_BCs(new_poly)
                 err = self.check_boundary_conditions(new_poly)
                 bc_count += 1
-                if bc_count > 15:
+                if bc_count > 3:
                     print("Can't comply with BCs. err = {}".format(err))
                     break
 
@@ -1463,6 +1565,18 @@ class traj_qr(trajectoryBase):
                 # Get the step in coefficients
                 poly_step[key] = new_poly[key] - c_leg_poly[key]
             # self.analyse_convexity(c_leg_poly,poly_step)
+            # # Analyse step
+            # if not self.curv_func or len(self.constraint_list)>0:
+            #     # import pdb; pdb.set_trace()
+            #     self.analyse_convexity(c_leg_poly,poly_step)
+            #     # self.c_leg_poly = new_poly
+            #     # self.get_trajectory()
+            #     # self.plot()
+            #     # # plt.show()
+            #     # self.c_leg_poly = c_leg_poly
+            #     # self.get_trajectory()
+            #     import pdb; pdb.set_trace()
+
 
             if self.curv_func and use_cost_step:
                 # Check cost for small step
@@ -1487,7 +1601,7 @@ class traj_qr(trajectoryBase):
                         new_poly = self.enforce_BCs(new_poly)
                         for key in new_poly.keys():
                             poly_step[key] = new_poly[key] - c_leg_poly[key]
-                        print("reverting to gradient method on iteration {}. Max viol is {}".format(iteration,self.max_viol))
+                        print("reverting to gradient method on iteration {}. Max viol is {}".format(self.iterations,self.max_viol))
                         use_cost_step = False
                     else:
                         # TODO (bmorrell@jpl.nasa.gov) CHECK THIS!!!
@@ -1502,9 +1616,10 @@ class traj_qr(trajectoryBase):
             # Check first order tolerance
             if np.abs(first_order_opt) < self.optim_opt['first_order_tol']:
                 # Decrease is below the tolerance, so exit the Loop
-                if self.optim_opt['print']:
-                    print('Exit: first order cost decrease in feasible direction '+str(first_order_opt)+' is less than exit tolerance in '+str(iteration)+' iterations.')
-                break
+                if not (self.exit_on_feasible and not self.feasible): # Don't break if it is not feasible
+                    if self.optim_opt['print']:
+                        print('Exit: first order cost decrease in feasible direction '+str(first_order_opt)+' is less than exit tolerance in '+str(self.iterations)+' iterations.')
+                    break
 
             # Check that step is in descent
             if first_order_opt > 0:
@@ -1512,14 +1627,20 @@ class traj_qr(trajectoryBase):
                 self.H_inv = np.identity(self.n_coeff)
                 print('Resetting Hessian to identity')
 
-            # Line Search
-            c_leg_poly, out_cost = self.line_search(cost,c_leg_poly,poly_step,cost_grad)
+            """ Line Search """
+
+            if use_quadratic_line_search:
+                c_leg_poly, out_cost = self.quadratic_line_search(cost,c_leg_poly,poly_step,cost_grad)
+            else:
+                c_leg_poly, out_cost = self.line_search(cost,c_leg_poly,poly_step,cost_grad)
+
 
             c_leg_poly_check = self.enforce_BCs(c_leg_poly)
 
             for key in c_leg_poly.keys():
                 if not np.allclose(c_leg_poly_check[key],c_leg_poly[key]):
-                    print("step violating BCs!")
+                    print("step violating BCs post line search!")
+
                     c_leg_poly = self.enforce_BCs(c_leg_poly)
                     # import pdb; pdb.set_trace()
 
@@ -1528,26 +1649,34 @@ class traj_qr(trajectoryBase):
 
             if self.optim_opt['print']:
                 print("Iteration end cost is {}".format(new_cost))
+
+            # Exit if feasible
+            if self.exit_on_feasible and self.feasible:
+                print("Trajectory is feasible on iteration {}. Exiting with cost: {}".format(self.iterations,new_cost))
+                break
+
+
             # Update Hessian
             self.update_hessian(cost_grad,new_cost_grad,poly_step)
 
             # Check for convergence - if cost decrease is sufficiently small
             if np.abs(new_cost - cost)/np.abs(cost) < self.optim_opt['exit_tol'] or new_cost < self.optim_opt['exit_tol']: #TODO add condition that all constraints need to not be violated
                 # Exit if the cost change is below tolerance and the maximum constraint violation cost is sufficiently small
-                if self.optim_opt['print']:
-                    print('Exit: cost difference is less than exit tolerance in '+str(iteration)+' iterations.')
-                break
+                if not (self.exit_on_feasible and not self.feasible): # Don't break if it is not feasible
+                    if self.optim_opt['print']:
+                        print('Exit: cost difference is less than exit tolerance in '+str(self.iterations)+' iterations.')
+                    break
 
             # Set costs and prepare for next Loop
             cost = new_cost
             cost_grad = new_cost_grad
-            iteration += 1 # count iterations of outer Loop
+            self.iterations += 1 # count iterations of outer Loop
 
             # Check if maximum number of iterations is reached
-            if iteration > self.optim_opt['max_iterations']:
+            if self.iterations > self.optim_opt['max_iterations']:
                 print('Exit: iteration limit exceeded')
                 break
-            if iteration > mutate_iter and mutation_run:
+            if self.iterations > mutate_iter and mutation_run:
                 print('Mutation iteration limit reached.returning result')
                 break
 
@@ -1555,6 +1684,30 @@ class traj_qr(trajectoryBase):
             if self.optim_opt['track_data']:
                 self.data_track.update_data_track(c_leg_poly,cost,cost_grad)
 
+
+            # Mutate after set number of iterations
+            if mutate_serial > 0:
+                # Flag active
+                if self.iterations > mutate_serial-1:
+                    # Hit the iteration limit - mutate the solution
+                    print("\n\n Mutating Polynomial after {} iterations".format(self.iterations))
+                    c_leg_list = self.mutate_coeffs(self.c_leg_poly,2)
+                    c_leg_poly = c_leg_list[1] # Take the second in the list as the first is the non-modified CLegPoly
+
+                    self.mutated = True
+                    # Update mutate_serial so it does not mutate on the next iteration
+                    if run_one_iteration:
+                        self.iterations = 0 # quick hack to reset iterations to zero
+                    else:
+                        mutate_serial += self.iterations
+
+                    # Reset HEssian to the identity:
+                    self.H_inv = np.identity(self.n_coeff)
+
+            # Exit if set to run just one iteration
+            if run_one_iteration:
+                print("completed one iteration")
+                break
             # self.set_yaw_des_from_traj(self.temp_state)
 
         # Exit from optimization - optimize yaw separately
@@ -1567,16 +1720,19 @@ class traj_qr(trajectoryBase):
             # update yaw components of CLegPoly
             c_leg_poly = self.initial_guess(c_leg_poly)
 
-            # optimise yaw only
-            c_leg_poly = self.optimise(c_leg_poly,mutate_iter=100)[1]
+            # # optimise yaw only
+            # print("OPTIMISING FOR YAW NOW")
+            # c_leg_poly = self.optimise(c_leg_poly,mutate_iter=100)[1] # note - set to use mutate flags + run for 100 iterations - takes the second output
 
             self.optimise_yaw_only = False
 
         # Print out status from optimisation
         if self.optim_opt['print'] and not self.optimise_yaw_only:
             path_cost = self.compute_path_cost_grad(c_leg_poly,doGrad=False,doCurv=False)[0]
-            print("At end of optimisation:\n  Path Cost is: {}\n  Constraint costs are: ".format(path_cost))
+            print("\n\nOptimisation complete in {} iterations\nAt end of optimisation:\n  Path Cost is: {}\n  Constraint costs are: ".format(self.iterations,path_cost))
             state = self.get_trajectory(c_leg_poly)
+            feasible = True
+            esdf_check_all_feasible = False
             for i in range(np.size(self.constraint_list)):
                 # Compute cost for each constraint
                 constr_cost = self.constraint_list[i].compute_constraint_cost_grad_curv(state,
@@ -1585,10 +1741,23 @@ class traj_qr(trajectoryBase):
                                                         doCurv=self.curv_func,
                                                         path_cost=path_cost)[0]
                 print("    Constr {}, type {}: {}".format(i,self.constraint_list[i].constraint_type,constr_cost))
-                if constr_cost > 0.0:
-                    self.feasible = False
-                else:
+
+                # Check feasibility - for all constriants
+                feasible = feasible and self.check_if_feasible( i)
+
+                if self.constraint_list[i].constraint_type is "esdf_check":
+                    esdf_check_all_feasible = self.check_if_feasible(i)
+
+            if esdf_check_all_feasible:
+                self.feasible = True
+                print("\nAt end of optimisation, trajectory is feasible with ESDF checking\n")
+            else:
+                if feasible:
+                    print("\nAt end of optimisation, trajectory is feasible\n")
                     self.feasible = True
+                else:
+                    print("\nAt end of optimisation, trajectory is NOT feasible\n")
+                    self.feasible = False
 
         if mutation_run:
             return cost, c_leg_poly
@@ -1601,11 +1770,16 @@ class traj_qr(trajectoryBase):
             #     print("State computation changed after optimization!!!")
             self.cost = cost
             self.cost_grad = cost_grad
-            self.iterations = iteration
+            # self.iterations = iteration
 
             # Store the time
             self.data_track.optimise_time = time.time() - start_time
-            self.data_track.iterations = iteration
+            self.data_track.iterations = self.iterations
+            # import pdb; pdb.set_trace()
+            if hasattr(self,'ax'):
+                if self.ax is not None:
+                    self.ax.legend()
+                plt.show()
 
             # for i in range(np.size(constr_cost_store)):
             #     print("cost for obstacle {} is {}.".format(i,constr_cost_store[i]))
@@ -1651,6 +1825,16 @@ class traj_qr(trajectoryBase):
         inner_iter = 0
         poly_target = dict()
 
+        delta_tmp = -1e9
+        target_tmp = dict()
+
+        # Check for exit criteria
+        criteria = 0.0
+
+        # Add to the criteria for each dimension
+        for key in c_leg_poly.keys():
+            criteria += -sigma*(cost_grad[key].dot(poly_step[key]))
+
         # Start inner optimisation loop
         while not exit:
 
@@ -1662,23 +1846,39 @@ class traj_qr(trajectoryBase):
             # Compute the cost
             new_cost = self.total_cost_grad_curv(poly_target,doGrad=False,doCurv=False)[0]
             # print("LS. iter {}, cost: {}".format(inner_iter,new_cost))
-            # Check for exit criteria
-            criteria = 0.0
 
-            # Add to the criteria for each dimension
-            for key in c_leg_poly.keys():
-                criteria += -step_coeff*sigma*(cost_grad[key].dot(poly_step[key]))
+            # Exit if feasible
+            if self.exit_on_feasible and self.feasible:
+                print("In Line Seach: traj is feasible, exiting on iteration {}".format(inner_iter+1))
+                break
 
             # Check if the cost reduction is large enough
-            if (cost-new_cost) >= criteria:
+            if (cost-new_cost) >= criteria*step_coeff:
                 # Exit if satisfied
                 break
 
             # Check for maximum number of iterations
             if inner_iter > self.optim_opt['max_armijo']:
-                print('\nLarge Armijo Update')
+                print('\nLarge Armijo Update!\n')
                 # Break if exceeded
+                # self.analyse_convexity(c_leg_poly,poly_step)
+                # import pdb; pdb.set_trace()
                 break
+
+            # Check if we are improving
+            if cost-new_cost < delta_tmp and inner_iter != 0:
+                print("Line Search: Getting worse in line search. Take the last step, with step_coeff = {}".format(step_coeff/beta))
+                new_cost = cost_tmp
+                for key in poly_target: poly_target[key] = target_tmp[key].copy()
+                break
+            else:
+                delta_tmp = cost - new_cost
+
+            # Store results for potential future use
+            cost_tmp = new_cost
+            for key in poly_target: target_tmp[key] = poly_target[key].copy()
+
+
 
             # count iterations
             inner_iter += 1
@@ -1695,6 +1895,123 @@ class traj_qr(trajectoryBase):
         print("inner iter: {}. Step: {}".format(inner_iter,step_coeff))
         # output result
         return poly_target, new_cost
+
+    def quadratic_line_search(self,cost,c_leg_poly,poly_step,cost_grad):
+        """
+        Use information on gradient and cuvature to get the optimal step size
+        """
+
+        # Get the gradient
+        delta = 0.001 # TODO - revise this value
+        steps = [-2*delta,-delta,0.0,delta,2*delta]
+        cost_list = []
+        poly_target = dict()
+
+        # Get the gradient and curvature around a step size of 1
+        for step_size in steps:
+            # Get the polynomial
+            # Loop for each dimension
+            for key in c_leg_poly.keys():
+                poly_target[key] = c_leg_poly[key] + (1+step_size)*poly_step[key]
+
+            # Compute the cost
+            cost_list.append(self.total_cost_grad_curv(poly_target,doGrad=False,doCurv=False)[0])
+
+
+        # Compute the gradient
+        grad = []
+        for i in range(3):
+            # Central differencing
+            grad.append((cost_list[i+2]-cost_list[i])/(2*delta))
+
+        # Compute the curvature
+        curv = (grad[2] - grad[0])/(2*delta)
+
+        # Compute the step
+        step_coeff = 1 - grad[1]/curv
+
+        if step_coeff < 0.0:
+            print("\nQuadratic line search gives step less than one. Just do backtracking line search\n")
+            poly_target, new_cost = self.line_search(cost,c_leg_poly,poly_step,cost_grad)
+            return poly_target, new_cost
+
+        # Apply step
+        for key in c_leg_poly.keys():
+            poly_target[key] = c_leg_poly[key] + step_coeff*poly_step[key]
+
+
+        # Compute the cost
+        new_cost = self.total_cost_grad_curv(poly_target,doGrad=False,doCurv=False)[0]
+
+        if new_cost > cost:
+            print("\nQuadratic line search bad, doing backtracking line search\n")
+            poly_target, new_cost = self.line_search(cost,c_leg_poly,poly_step,cost_grad)
+            return poly_target, new_cost
+
+        # plot to analyse
+        # poly_step_plot = dict()
+        # for key in c_leg_poly.keys(): poly_step_plot[] = step_coeff*poly_step[key]
+        # self.analyse_convexity(c_leg_poly,poly_step,plot_range=[0,step_coeff])
+
+        # Store final step size
+        self.step_coeff = step_coeff # for use in resetting hessian
+        print("quadratic line search: Step: {}".format(step_coeff))
+        # output result
+        return poly_target, new_cost
+
+
+    def check_if_feasible(self, i_constraint):
+        """ To check if a constraints cost shows it is actually feasible (just inside the inflation region) """
+        # quad_buffer = self.constraint_list[i_constraint].quad_buffer
+        # inflate_buffer = self.constraint_list[i_constraint].inflate_buffer
+        # weight = self.constraint_list[i_constraint].weight
+        # cost_type = self.constraint_list[i_constraint].cost_type
+        #
+        # if cost_type is "squared":
+        #     dist = -np.sqrt(cost/weight)
+        # else:
+        #     dist = -cost/weights
+        #
+        # true_dist = dist + inflate_buffer
+        #
+        # return true_dist >= 0
+
+        # if self.constraint_list[i].constraint_type is "cylinder" and not self.constraint_list[i].keep_out and self.esdf_feasibility_checking:
+        #     # If useing cylinder keep-in constriants and using the esdf to check feasibility
+        #     return self.check_esdf_collision(self.constraint_list[i].esdf)
+
+
+        print("Checking constraint feasibility for constriant: {}. Is {}".format(i_constraint,self.constraint_list[i_constraint].feasible))
+
+        return self.constraint_list[i_constraint].feasible
+
+    def check_esdf_collision(self,esdf,state,quad_buffer,seg=None):
+
+        # get x, y, z trajectories
+        x = state['x'][0,:,seg]
+        y = state['y'][0,:,seg]
+        z = state['z'][0,:,seg]
+
+        # Create query points
+        query = np.matrix(np.zeros([3,x.size]),dtype='double')
+        dist = np.matrix(np.zeros((np.shape(query)[1],1)),dtype='double')
+        obs = np.matrix(np.zeros((np.shape(query)[1],1)),dtype='int32')
+
+        # load in x, y, z points
+        query[0,:] = np.around(x,4)
+        query[1,:] = np.around(y,4)
+        query[2,:] = np.around(z,4)
+
+        # Query the database
+        # if doGrad:
+        grad = np.matrix(np.zeros(np.shape(query)),dtype='double')
+        esdf.getDistanceAndGradientAtPosition(query, dist, grad, obs)
+
+        dist -= quad_buffer
+
+        dist[obs!=1] = 0.0
+
+        return np.min(dist) >= 0.0
 
     def time_opt_cost(self,indices=[None],new_times=None,defer=True):
         """ Computing cost for the outer loop time optimisation """
@@ -1922,7 +2239,7 @@ class traj_qr(trajectoryBase):
         """
 
         # Placeholder
-        mutation_strength = 100.0
+        mutation_strength = 5.0
 
         # initialise list
         c_leg_mutate_list = [c_leg_poly.copy(),]
@@ -1954,12 +2271,13 @@ class traj_qr(trajectoryBase):
 
 
 
-    def add_constraint(self,constraint_type,params,dynamic_weighting=False,sum_func=True):
+    def add_constraint(self,constraint_type,params,dynamic_weighting=False,sum_func=True,custom_weighting=False):
         """
         Adding a constraint to the constraint array
 
         """
         print("Obstacle params are: {}".format(params))
+
         if constraint_type == "ellipsoid":
             weight = params['weight']
             keep_out = params['keep_out']
@@ -1968,8 +2286,11 @@ class traj_qr(trajectoryBase):
             A = np.array(params['A'])
             rot_mat = params['rot_mat']
 
-            self.constraint_list.append((constraint.ellipsoid_constraint(weight,keep_out,der,x0,A,rot_mat,dynamic_weighting=dynamic_weighting,doCurv=self.curv_func,sum_func=sum_func)))
+            self.constraint_list.append((constraint.ellipsoid_constraint(weight,keep_out,der,x0,A,rot_mat,
+                                    dynamic_weighting=dynamic_weighting,doCurv=self.curv_func,
+                                    sum_func=sum_func,custom_weighting=custom_weighting)))
 
+            self.exit_on_feasible = True
         elif constraint_type == "cylinder":
             weight = params['weight']
             keep_out = params['keep_out']
@@ -1982,15 +2303,38 @@ class traj_qr(trajectoryBase):
 
             self.constraint_list.append((constraint.cylinder_constraint(weight,keep_out,der,x1,x2,r,l=l,
                                             active_seg=active_seg,dynamic_weighting=dynamic_weighting,
-                                            doCurv=self.curv_func,sum_func = sum_func)))
+                                            doCurv=self.curv_func,sum_func = sum_func,custom_weighting=custom_weighting)))
 
         else:
 
             print("Error: invalid constraint type input: {}".format(constraint_type))
 
+        self.feasible = False
+
     def remove_constraint(self,index):
 
         self.constraint_list.pop(index)
+
+    def remove_corridor_constraints(self):
+
+        if np.size(self.constraint_list) == 0:
+            return
+
+        count = 0
+        remove_list = []
+
+        for constraint in self.constraint_list:
+            if constraint.constraint_type is "cylinder" and not constraint.keep_out:
+                # An existing corridor constraint
+                remove_list.append(count)
+            count += 1
+
+        print("removing corridor constraints, in list with indices: {}".format(remove_list))
+
+        count = 0
+        for index in remove_list:
+            self.remove_constraint(index - count)
+            count += 1
 
     def remove_esdf_constraint(self):
 
@@ -2002,13 +2346,17 @@ class traj_qr(trajectoryBase):
             else:
                 i = i + 1
 
-    def add_esdf_constraint(self,esdf,weight=1e9,quad_buffer=0.0,dynamic_weighting=False,sum_func=False):
+    def add_esdf_constraint(self,esdf,weight=1e9,quad_buffer=0.0,inflate_buffer=0.0,dynamic_weighting=False,sum_func=False,feasibility_checker=False,custom_weighting=True):
         """
         Add a constriant that uses an esdf map
         the esdf is of the voxblox format
         """
-
-        self.constraint_list.append((constraint.esdf_constraint(weight,esdf,quad_buffer,dynamic_weighting=dynamic_weighting,sum_func=sum_func)))
+        # Set flag to exit when a feasible trajectory is obtained
+        self.exit_on_feasible = True
+        self.feasible = False
+        if feasibility_checker:
+            self.esdf_feasibility_check = True
+        self.constraint_list.append((constraint.esdf_constraint(weight,esdf,quad_buffer,inflate_buffer,dynamic_weighting=dynamic_weighting,sum_func=sum_func,feasibility_checker=feasibility_checker,custom_weighting=custom_weighting)))
 
     def set_constraint_weight(self,weight,constraint_type):
 
@@ -2157,10 +2505,6 @@ class traj_qr(trajectoryBase):
             waypoints: dict with waypoints for each dimension (np.array([n_der,n_waypoints]))
         """
 
-        import matplotlib.pyplot as plt
-        import matplotlib as mpl
-        from mpl_toolkits.mplot3d import Axes3D
-
         # values
         x = self.state_combined['x'][0,:]
         y = self.state_combined['y'][0,:]
@@ -2169,15 +2513,23 @@ class traj_qr(trajectoryBase):
         waypoints = self.waypoints
 
         # PLOT FIGURE
-        fig = plt.figure(figsize=(10,10))
-        fig.suptitle('Static 3D Plot', fontsize=20)
-        ax = Axes3D(fig)#fig.add_subplot(111, projection='3d')
-        ax.set_xlabel('x (m)', fontsize=14)
-        ax.set_ylabel('y (m)', fontsize=14)
-        ax.set_zlabel('z (m)', fontsize=14)
+        if self.fig is None:
+            fig = plt.figure(figsize=(10,10))
+            fig.suptitle('Static 3D Plot', fontsize=20)
+            ax = Axes3D(fig)#fig.add_subplot(111, projection='3d')
+            ax.set_xlabel('x (m)', fontsize=14)
+            ax.set_ylabel('y (m)', fontsize=14)
+            ax.set_zlabel('z (m)', fontsize=14)
+            self.plot_index = 0
+            self.ax = ax
+            self.fig = fig
+        else:
+            fig = self.fig
+            ax = self.ax
 
         # plot Trajectory
-        ax.plot(x,y,z, label='Trajectory')
+        label = "Traj at iter {}".format(self.plot_index)
+        ax.plot(x,y,z, label=label)
 
         # plot waypoints
         ax.scatter(waypoints['x'][0,:],
@@ -2186,6 +2538,8 @@ class traj_qr(trajectoryBase):
                     label='Waypoints')
         ax.axis('equal')
         ax.view_init(azim=azim,elev=elev)
+
+        self.plot_index += 1
         # plt.show()
         return fig
 
@@ -2232,13 +2586,18 @@ class traj_qr(trajectoryBase):
         # plt.show()
         return fig
 
-    def analyse_convexity(self,c_leg_poly,poly_step):
+    def analyse_convexity(self,c_leg_poly,poly_step,plot_range=None):
 
-        n_test = 51
+        n_test = 15
 
-        # step_sizes = np.linspace(-2.0e-7,8.0e-7,n_test)
-        step_sizes = np.linspace(-2.0,2.0,n_test)
-        # step_sizes = np.linspace(-1.0e-3,1.0e-3,n_test)
+        if plot_range is not None:
+            step_sizes = np.linspace(plot_range[0],plot_range[1],n_test)
+        else:
+            # step_sizes = np.linspace(-2.0e-7,8.0e-7,n_test)
+            # step_sizes = np.linspace(-2.0,2.0,n_test)
+            # step_sizes = np.linspace(-0.5,2.0,n_test)
+            step_sizes = np.linspace(-0.0,1.0,n_test)
+            # step_sizes = np.linspace(-1.0e-3,1.0e-3,n_test)
 
         costs = np.zeros(n_test)
 
@@ -2247,23 +2606,30 @@ class traj_qr(trajectoryBase):
 
         for i in range(n_test):
             test_poly = self.unstack_vector(start_c + step_sizes[i]*step_c)
-            costs[i] = self.total_cost_grad_curv(test_poly, doGrad=True,doCurv=self.curv_func)[0]
+            # costs[i] = self.total_cost_grad_curv(test_poly, doGrad=True,doCurv=self.curv_func)[0]
+            costs[i] = self.total_cost_grad_curv(test_poly, doGrad=False,doCurv=False)[0]
 
         import matplotlib.pyplot as plt
         import matplotlib as mpl
         from mpl_toolkits.mplot3d import Axes3D
 
+        # plt.style.use('bmh')
+        plt.style.use('seaborn-paper')
+
+
         # PLOT FIGURE
-        fig = plt.figure(figsize=(10,10))
-        fig.suptitle('Cost Change', fontsize=20)
+        fig = plt.figure(figsize=(12,6))
+        # fig.suptitle('Cost Change', fontsize=20)
         ax = fig.add_subplot(111)
-        ax.set_xlabel('x (m)', fontsize=14)
-        ax.set_ylabel('y (m)', fontsize=14)
-
+        ax.set_xlabel('Step size', fontsize=16,fontweight='bold')
+        ax.set_ylabel('Cost', fontsize=16,fontweight='bold')
+        ax.tick_params(axis='both', which='major', labelsize=16)
+        ax.tick_params(axis='both', which='minor', labelsize=14)
         # plot Trajectory
-        ax.plot(step_sizes,costs)
-
+        ax.plot(step_sizes,costs,linewidth=3.0)
+        plt.grid()
         plt.show()
+
         return fig
 
     def numerical_gradient(self,c_leg_poly):

@@ -120,6 +120,8 @@ class QRPolyTrajGUI(QWidget):
         self.esdf_weight = 100.0
         self.replan = True
 
+	self.seed_times = None
+
         self.defer = defer
 
         # Settings for showing distance to obstacles
@@ -444,10 +446,10 @@ class QRPolyTrajGUI(QWidget):
         costs['y'] = [0, 0, 0, 0, 1]  # minimum snap
         costs['z'] = [0, 0, 0, 0, 1]  # minimum snap
         costs['yaw'] = [0, 0, 1]  # minimum acceleration
-        order=dict(x=9, y=9, z=9, yaw=5)
-        # order=dict(x=12, y=12, z=12, yaw=8)
+        # order=dict(x=9, y=9, z=9, yaw=5)
+        order=dict(x=12, y=12, z=12, yaw=9)
         waypoints['yaw'] = np.array([0.0] * np.size(waypoints['x']))
-        seed_times = np.ones(waypoints['x'].size-1)*1.0
+        seed_times = self.seed_times#None#np.ones(waypoints['x'].size-1)*1.0
         self.qr_polytraj = traj_qr.traj_qr(waypoints,
                                             costs=costs,
                                             order=order,
