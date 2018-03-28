@@ -114,17 +114,19 @@ class QRPolyTrajGUI(QWidget):
         self.collide_sphere_dist = 0.0
         self.constraint_list = []
         self.accel_lim = 1e2
-        self.accel_weight = 1e1
-        self.corridor_weight = 0.0
+        self.accel_weight = 1e0
+        self.corridor_weight = 1e-4
         self.all_corridors = True # IF false, then will only add corridors for segments in violation
-        self.esdf_weight = 0.0
+        self.esdf_weight = 100.0
         self.replan = True
 
         self.defer = defer
 
         # Settings for showing distance to obstacles
         self.unknown_is_free = True
-        self.quad_buffer = 0.6
+        self.quad_buffer = 0.3
+        self.inflate_buffer = 10.0
+
          #15
         self.l_max = None
         self.plot_traj_color = True
@@ -362,7 +364,7 @@ class QRPolyTrajGUI(QWidget):
                         #rospy.Time.now(),
                         #'px4_pose_stamped',
                         #'local_origin')
-    def update_path_markers(self, qr_type="main"):
+    def update_path_markers(self, qr_type="main",waypoints_moved = True):
         if self.qr_polytraj is None:
             return
 
@@ -374,7 +376,9 @@ class QRPolyTrajGUI(QWidget):
             qr_p = self.qr_p_exit
 
         self.update_node_path_markers()
-        self.corridors_init = False
+        if self.corridors_init and waypoints_moved:
+            self.corridors_init = False
+            self.on_initialize_corridors_button_clicked()
 
         if hasattr(qr_p,'state_combined'):
             x = qr_p.state_combined['x'][0,:]
@@ -459,8 +463,10 @@ class QRPolyTrajGUI(QWidget):
         # self.add_ellipsoid_constraint()
         # acceleration constraint
         # self.create_keep_in_constraint()
+        self.corridors_init = False
         self.replan = False
         self.qr_polytraj.run_astro()
+        self.replan = True
         self.update_path_markers()
         acc_wp = self.get_accel_at_waypoints("main")
         self.interactive_marker_worker.make_controls(self.qr_polytraj.waypoints)
@@ -515,7 +521,7 @@ class QRPolyTrajGUI(QWidget):
         # self.obstacle_worker.make_obstacles(self.qr_polytraj.constraint_list)
         # self.obstacle_worker.update_obstacles(self.qr_polytraj.constraint_list)
 
-    def add_corridor_constraint(self,seg,r,weight=1.0):
+    def add_corridor_constraint(self,seg,r,weight=1.0,sum_func=True):
         """ Add in a corridor constraint """
 
         constraint_type = "cylinder"
@@ -533,10 +539,9 @@ class QRPolyTrajGUI(QWidget):
         params['keep_out'] = False
         params['active_seg'] = seg
 
+        self.qr_polytraj.add_constraint(constraint_type,params,sum_func=sum_func,custom_weighting=False)
 
-        self.qr_polytraj.add_constraint(constraint_type,params,dynamic_weighting=False,sum_func=False)
-
-    def on_initialize_corridors_button_clicked(self):
+    def on_initialize_corridors_button_clicked(self,sig_in=None,sum_func=True):
         """ Initialise cylindrical keep in constraints around the segemnts
         """
         if self.qr_polytraj is None or self.corridors_init is True:
@@ -545,6 +550,11 @@ class QRPolyTrajGUI(QWidget):
         map = self.check_for_map()
         if map is None:
             return
+
+        if np.size(self.qr_polytraj.constraint_list) > 0:
+            self.qr_polytraj.remove_corridor_constraints()
+
+        self.qr_polytraj.exit_on_feasible = True
 
         # Get minimum distance for each segment
         l_max = self.compute_nearest_distance_to_obstacles(self.qr_polytraj.waypoints)
@@ -555,7 +565,7 @@ class QRPolyTrajGUI(QWidget):
         for i in range(self.qr_polytraj.n_seg):
             if i in collision_segs or self.all_corridors:
                 # For each segment in collision
-                self.add_corridor_constraint(i,l_max[i],weight=100.0)
+                self.add_corridor_constraint(i,l_max[i],weight=self.corridor_weight,sum_func=sum_func)
 
 
         if not self.defer:
@@ -566,6 +576,7 @@ class QRPolyTrajGUI(QWidget):
             self.interactive_marker_worker.update_controls(self.qr_polytraj.waypoints,acc_wp = acc_wp)
 
         self.corridors_init = True
+        self.replan = True
 
     def on_waypoint_control_callback(self, position, index, qr_type,defer=False):
         if qr_type is "main":
@@ -1463,15 +1474,23 @@ class QRPolyTrajGUI(QWidget):
             print(e)
             return
 
-    def load_esdf_obstacle(self):
+    def load_esdf_obstacle(self,sig_in=None,sum_func=True,custom_weighting=True):
         if self.global_dict['fsp_out_map'] is None:
             print("No ESDF loaded")
             return
         print("in load_esdf_obstacle")
 
+        if self.qr_polytraj is None:
+            print("Need to have loaded an trajectory")
+            return
+
         esdf = self.global_dict["fsp_out_map"]
 
-        self.qr_polytraj.add_esdf_constraint(esdf, self.esdf_weight, self.quad_buffer,dynamic_weighting=False)
+        esdf_inflation_buffer = self.quad_buffer + self.inflate_buffer
+
+        self.qr_polytraj.exit_on_feasible = True
+
+        self.qr_polytraj.add_esdf_constraint(esdf, self.esdf_weight, self.quad_buffer,self.inflate_buffer,dynamic_weighting=False, sum_func = sum_func,custom_weighting=custom_weighting)
 
         if not self.defer:
             self.qr_polytraj.run_astro(replan=True)
@@ -1479,6 +1498,22 @@ class QRPolyTrajGUI(QWidget):
             acc_wp = self.get_accel_at_waypoints("main")
             self.interactive_marker_worker.make_controls(self.qr_polytraj.waypoints)
             self.interactive_marker_worker.update_controls(self.qr_polytraj.waypoints,acc_wp = acc_wp)
+
+    def add_esdf_feasibility_checker(self):
+        if self.global_dict['fsp_out_map'] is None:
+            print("No ESDF loaded")
+            return
+        print("in load_esdf_obstacle")
+
+        esdf = self.global_dict["fsp_out_map"]
+
+        self.qr_polytraj.exit_on_feasible = True
+
+        self.qr_polytraj.add_esdf_constraint(esdf, weight=0.0, quad_buffer=self.quad_buffer,
+                                            inflate_buffer=0.0, sum_func = False,
+                                            feasibility_checker=True,
+                                            custom_weighting=False)
+
 
     def on_fsp_updated_signal(self):
         print('in fsp callback')
@@ -1558,7 +1593,7 @@ class QRPolyTrajGUI(QWidget):
         constr['A'] = A
 
 
-        self.qr_polytraj.add_constraint(constr['constraint_type'],constr,dynamic_weighting=False,sum_func=False)
+        self.qr_polytraj.add_constraint(constr['constraint_type'],constr,dynamic_weighting=False,sum_func=True)
 
         # self.qr_polytraj.run_astro()
         # self.update_path_markers()
@@ -1656,10 +1691,10 @@ class QRPolyTrajGUI(QWidget):
             l_max[k] = np.min(dist) - self.quad_buffer
 
         # check for collisions
-        if np.min(l_max <=0.0):
+        if np.min(l_max) <=0.0:
             out_msg = "Path is in collision with environment"
             print(out_msg)
-            self.terminal_text_edit.appendPlainText(out_msg)
+            # self.terminal_text_edit.appendPlainText(out_msg)
 
         # Update l_max in the qr_polytraj object
         # print("setting l_max")
