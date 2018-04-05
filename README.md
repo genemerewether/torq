@@ -7,7 +7,7 @@ For Ubuntu 16.04
 
 1. [Install ROS](http://wiki.ros.org/kinetic/Installation/Ubuntu)
 
-2. Create a catkin workspace, or use an existing one (link)
+2. Create a catkin workspace, or use an existing one
 ```
 mkdir -p ~/catkin_ws/src
 cd ~/catkin_ws
