@@ -20,9 +20,6 @@ catkin init
 In src
 ```
 git clone https://github.com/genemerewether/torq.git
-cd torq
-git checkout dev/astro_edits
-git pull
 ```
 
 5. Install Scipy and numpy 
