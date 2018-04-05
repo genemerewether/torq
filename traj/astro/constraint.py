@@ -29,7 +29,7 @@ import numpy as np
 class constraintBase(object):
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self,weight=1.0,keep_out=True,der=0,dynamic_weighting=False):
+    def __init__(self,weight=1.0,keep_out=True,der=0,dynamic_weighting=False,custom_weighting=False):
 
         # self.fcnID = 1
 
@@ -42,9 +42,14 @@ class constraintBase(object):
         self.keep_out   = keep_out
         self.active_seg = None
 
+        self.feasible = False
+        self.seg_feasible = False
+
         self.constraint_type = "null"
 
         self.dynamic_weighting = dynamic_weighting
+
+        self.custom_weighting = custom_weighting
 
         # self.cost = 0
         # self.grad = np.array([])
@@ -99,8 +104,10 @@ class constraintBase(object):
         constr_cost = 0.0;
         constr_cost_sqrt = 0.0;
 
+        feasible = True;
+
         if path_cost == 0.0:
-            self.dynamic_weighting = 0
+            self.dynamic_weighting = False
 
         # initialise gradient dictionary
         for key in state.keys():
@@ -124,9 +131,13 @@ class constraintBase(object):
                 cost_weight = 10**(np.round(np.log10(path_cost))-np.round(np.log10(cost**2))+1)
                 if not self.keep_out:
                     cost_weight = 10**(np.round(np.log10(path_cost/n_seg)))#-np.round(np.log10(cost**2))+2)
-
+            elif self.custom_weighting and cost > 0.0:
+                cost_weight = 1.0 # Temporary - set at the end
             else:
                 cost_weight = self.weight
+
+            # Track overall feasibility for the constraint
+            feasible = feasible and self.seg_feasible
 
             # Add the cost for the constraint
             # if not doCurv or self.keep_out is True:
@@ -140,7 +151,7 @@ class constraintBase(object):
 
             # print("obstacle cost is {}".format(constr_cost))
             # Compute gradient if constraint is active
-            if doGrad and max_ID[0] != -1:
+            if doGrad and max_ID[0] != -1 and self.constraint_type is not "esdf_check":
 
                 # Loop for each dimension
                 for key in ['x','y','z']:
@@ -186,21 +197,50 @@ class constraintBase(object):
         #     for key in constr_grad_check.keys():
         #         constr_grad_check[key] = 2*constr_grad_check[key]*constr_cost*cost_weight
 
+        if self.custom_weighting:
+            # Set one weighting for all segments, on the first iteration, based on the path cost
+            if self.constraint_type is "esdf":
+                # cost_weight = 10**(np.round(np.log10(path_cost)*3.0)-np.round(np.log10(constr_cost)*0.9))# 198
+                cost_weight = 10**(np.round(np.log10(path_cost)*3.25)-np.round(np.log10(constr_cost)*0.6))# 344
+                # import pdb; pdb.set_trace()
+                print("\n\nCustom Cost Weight is {}\n\n".format(cost_weight))
+            elif self.constraint_type is "cylinder":
+                cost_weight = 10**(np.round(np.log10(path_cost)*0.5)-np.round(np.log10(constr_cost)*2.0))
+                print("\n\nCustom Cost Weight is {}\n\n".format(cost_weight))
+            else:
+                cost_weight = self.weight
+                # import pdb; pdb.set_trace()
+            # cost_weight = 10**(np.round(np.log10(path_cost)*1.5)-6)#np.round(np.log10(constr_cost))+2)
+
+            # apply weight
+            constr_cost *= cost_weight
+            for key in constr_cost_grad.keys():
+                constr_cost_grad[key] *= cost_weight
+                constr_cost_curv[key] *= cost_weight
+
+            self.custom_weighting = False
+            self.weight = cost_weight
+
+        # Feasibility check
+        self.feasible = feasible
+
         return constr_cost, constr_cost_grad, constr_cost_curv
 
 
 
 class ellipsoid_constraint(constraintBase):
 
-    def __init__(self,weight,keep_out,der,x0,A,rot_mat,dynamic_weighting=False,doCurv=False,sum_func = True):
+    def __init__(self,weight,keep_out,der,x0,A,rot_mat,dynamic_weighting=False,doCurv=False,sum_func = True,custom_weighting=False):
         """
 
         """
 
         # Initialise parent case class
-        super(ellipsoid_constraint,self).__init__(weight,keep_out,der,dynamic_weighting)
+        super(ellipsoid_constraint,self).__init__(weight,keep_out,der,dynamic_weighting,custom_weighting=custom_weighting)
 
         self.constraint_type = "ellipsoid"
+
+        self.seg_feasible = True
 
         self.x0 = x0
 
@@ -297,13 +337,25 @@ class ellipsoid_constraint(constraintBase):
 
             max_cost = np.sum(cost_tmp)
 
+            max_check = np.amax(cost_tmp)
+
         else:
             # Maximum violation
             max_cost = np.amax(cost_tmp)
+            max_check = max_cost
             if np.sum(np.isclose(cost_tmp,max_cost))<1:
                 print("ERROR - can't match max in cost_tmp")
             max_ID = np.where(np.isclose(cost_tmp,max_cost))[0][0]
 
+        # Check non-inflated feasibility
+        if max_check <= 0:
+            self.seg_feasible = True # TODO - do this for the other constraints
+            # print("ESDF Constraint in segment is feasible. Distance is {} (m), gradient is: {}".format(max_check, -grad[:,max_ID]))
+            print("Ellipsoid Constraint in segment is feasible. Distance is {} (m)".format(max_check))
+        else:
+            print("Ellipsoid Constraint in segment is NOT feasible. Distance is {} (m)".format(max_check))
+            import pdb; pdb.set_trace()
+            self.seg_feasible = False
 
         # if np.size(max_ID) > 1:
         #     max_ID = max_ID[0]
@@ -343,15 +395,18 @@ class ellipsoid_constraint(constraintBase):
 
 class cylinder_constraint(constraintBase):
 
-    def __init__(self,weight,keep_out,der,x1,x2,r,l=0.01,active_seg=None,dynamic_weighting=False,doCurv=False,sum_func = True):
+    def __init__(self,weight,keep_out,der,x1,x2,r,l=0.01,active_seg=None,dynamic_weighting=False,
+    doCurv=False,sum_func = True,inflate_buffer=None,custom_weighting=False):
         """
 
         """
 
         # Initialise parent case class
-        super(cylinder_constraint,self).__init__(weight,keep_out,der,dynamic_weighting)
+        super(cylinder_constraint,self).__init__(weight,keep_out,der,dynamic_weighting,custom_weighting=custom_weighting)
 
         self.constraint_type = "cylinder"
+
+        self.seg_feasible = True
 
         # WHich segments it applies to
         self.active_seg = active_seg
@@ -360,6 +415,12 @@ class cylinder_constraint(constraintBase):
         self.x2 = x2
         self.r = r
         self.l = l # endcap outward radius
+
+        if inflate_buffer == None:
+            # Set to radius
+            self.inflate_buffer = self.r*1.0
+        else:
+            self.inflate_buffer = inflate_buffer
 
         # Geometry computations
         a = x2-x1
@@ -401,10 +462,10 @@ class cylinder_constraint(constraintBase):
         else:
             self.in_out_scale = 1
 
-        if not self.curv_func or self.keep_out is True:
-            self.cost_type = "squared"
-        else:
-            self.cost_type = "not_squared"
+        # if not self.curv_func or self.keep_out:
+        #     self.cost_type = "squared"
+        # else:
+        self.cost_type = "not_squared"
 
 
 
@@ -485,9 +546,10 @@ class cylinder_constraint(constraintBase):
         cost_tmp_bot = np.zeros(np.shape(x_endcap1)[1])
         cost_tmp_top = np.zeros(np.shape(x_endcap2)[1])
         for i in range(np.shape(x_endcap1)[1]):
-            cost_tmp_bot[i] = self.in_out_scale*(x_endcap1[:,i].T*self.A*x_endcap1[:,i] - 1)[0,0]
+            cost_tmp_bot[i] = self.in_out_scale*(x_endcap1[:,i].T*self.A*x_endcap1[:,i] - 1 + self.in_out_scale*self.inflate_buffer**2/self.r**2)[0,0]
         for i in range(np.shape(x_endcap2)[1]):
-            cost_tmp_top[i] = self.in_out_scale*(x_endcap2[:,i].T*self.A*x_endcap2[:,i] - 1)[0,0]
+            cost_tmp_top[i] = self.in_out_scale*(x_endcap2[:,i].T*self.A*x_endcap2[:,i] - 1 + self.in_out_scale*self.inflate_buffer**2/self.r**2)[0,0]
+
 
         # Cylinder
         a2 = np.repeat(np.reshape(self.a,(3,1)),np.shape(x_cylinder)[1],axis=1) #a*ones(1,length(x(1,:))); # Repeat in matrix
@@ -496,7 +558,8 @@ class cylinder_constraint(constraintBase):
         #Distance to the line squared is |b|^2 / |a|^2, which leaves
         # |x2_x|^2*sin^2(theta) = d^2
         #Cost function is line d^2 - radius^2 (positive if outside)
-        cost_tmp_mid = self.in_out_scale*(self.long_dot(b,b)/self.c - self.r**2*np.ones((1,np.shape(b)[1])))
+        # cost_tmp_mid = self.in_out_scale*(self.long_dot(b,b)/self.c - (self.r**2 + self.inflate_buffer**2)*np.ones((1,np.shape(b)[1])))
+        cost_tmp_mid = self.in_out_scale*(self.long_dot(b,b)/self.c/self.r**2 - (1 - self.in_out_scale*self.inflate_buffer**2/self.r**2)*np.ones((1,np.shape(b)[1])))
         # cost_tmp_mid = self.in_out_scale*(self.long_dot(b,b)/self.c/self.r**2  - np.ones((1,np.shape(b)[1])))
         # cost_tmp_mid = in_out_scale.*(dot(b,b)./constraint.c./constraint.r^2 - ones(1,length(b(1,:))));
 
@@ -509,7 +572,7 @@ class cylinder_constraint(constraintBase):
         cost_tmp[dot_top<0] = cost_tmp_top
 
         # Add cylinder cost
-        cost_tmp[(dot_bot>=0)*(dot_top>=0)] = cost_tmp_mid
+        cost_tmp[(dot_bot>=0)*(dot_top>=0)] = np.reshape(cost_tmp_mid,np.size(cost_tmp_mid))
 
         # Get out the max cost or summed cost
         if self.sum_func:
@@ -521,18 +584,28 @@ class cylinder_constraint(constraintBase):
                 max_ID = np.where(cost_tmp>-np.inf)[0]
             max_cost = np.sum(cost_tmp)
 
-
+            # Get cost to check
+            max_check = np.amax(cost_tmp) - self.in_out_scale*self.inflate_buffer**2/self.r**2
         else:
             # Maximum violation
             max_cost = np.amax(cost_tmp)
+            max_check = max_cost - self.in_out_scale*self.inflate_buffer**2/self.r**2
             if np.sum(np.isclose(cost_tmp,max_cost))<1:
                 print("ERROR - can't match max in cost_tmp")
             max_ID = np.atleast_1d(np.where(np.isclose(cost_tmp,max_cost))[0][0])
 
 
+        # Check non-inflated feasibility
+        if max_check <= 0:
+            self.seg_feasible = True # TODO - do this for the other constraints
+            print("Cylinder Constraint in segment is feasible. Cost check value is {}".format(max_check))
+        else:
+            print("Cylinder Constraint in segment is NOT feasible. Cost check value  is {}".format(max_check))
+            self.seg_feasible = False
+
         # if np.size(max_ID) > 1:
         #     max_ID = max_ID[0]
-        if max_cost <= 0:
+        if max_cost <= 0 and not self.sum_func:
             # Constraint not active - no need to compute gradient.
             # Set max ID to negative as a flag
             max_ID = -1
@@ -604,21 +677,29 @@ class cylinder_constraint(constraintBase):
 
 class esdf_constraint(constraintBase):
 
-    def __init__(self,weight,esdf,quad_buffer=0.0,dynamic_weighting=False,sum_func=False):
+    def __init__(self,weight,esdf,quad_buffer=0.0,inflate_buffer = 0.0,
+    dynamic_weighting=False,sum_func=False,custom_weighting=True,feasibility_checker=False):
         """
 
         """
 
         # Initialise parent case class
-        super(esdf_constraint,self).__init__(weight,dynamic_weighting=dynamic_weighting)
+        super(esdf_constraint,self).__init__(weight,dynamic_weighting=dynamic_weighting,custom_weighting=custom_weighting)
 
-        self.constraint_type = "esdf"
+        if feasibility_checker:
+            self.constraint_type = "esdf_check"
+        else:
+            self.constraint_type = "esdf"
         # self.keep_out = True
+
+        self.seg_feasible = True
 
         self.esdf = esdf
 
-        self.quad_buffer = quad_buffer
+        self.quad_buffer = quad_buffer + inflate_buffer
+        self.inflate_buffer = inflate_buffer
         print("quad_buffer in esdf is {}".format(quad_buffer))
+
         self.unknown_is_free = True
 
         if self.keep_out:
@@ -629,8 +710,6 @@ class esdf_constraint(constraintBase):
         self.cost_type = "squared"
 
         self.sum_func = sum_func
-
-
 
     def cost_grad_curv(self, state, seg = 0, doGrad=True, doCurv=False):
         """
@@ -696,22 +775,36 @@ class esdf_constraint(constraintBase):
         dist -= self.quad_buffer
 
         if self.unknown_is_free:
-            dist[obs != 1] = 2.0
+            dist[obs != 1] = self.quad_buffer - self.inflate_buffer#2.0
+
+        # else:
+            # dist[obs != 1] = -2.0
 
 
         if self.sum_func:
             # Sum all costs
-            dist[-dist < 0.0] = 0.0
+            # dist[-dist < 0.0] = 0.0
             max_cost = np.sum(-dist)
-            # max_ID = np.where(dist>-np.inf)[0]
-            max_ID = np.where(-dist>0.0)[0]
+            max_check = np.amax(-dist) - self.inflate_buffer
+            max_ID = np.where(dist>-np.inf)[0]
+            # max_ID = np.where(-dist>0.0)[0]
         else:
             # Maximum violation
             max_cost = np.amax(-dist) # Negative as violations are negative distances
+            max_check = max_cost - self.inflate_buffer
             # cost_tmp = -np.sign(dist)*dist**2
             max_ID = np.where((-dist)==max_cost)[0][0]
 
-        if max_cost <= 0:
+        # Check non-inflated feasibility
+        if max_check <= 0:
+            self.seg_feasible = True # TODO - do this for the other constraints
+            # print("ESDF Constraint in segment is feasible. Distance is {} (m), gradient is: {}".format(max_check, -grad[:,max_ID]))
+            print("ESDF Constraint in segment is feasible. Distance is {} (m)".format(max_check))
+        else:
+            print("ESDF Constraint in segment is NOT feasible. Distance is {} (m)".format(max_check))
+            self.seg_feasible = False
+
+        if max_cost <= 0 and not self.sum_func:
             # Constraint not active - no need to compute gradient.
             # Set max ID to negative as a flag
             # print("Max esdf cost, {}, is < 0".format(max_cost))
