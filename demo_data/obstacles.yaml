@@ -1,0 +1,11 @@
+state_info:
+  w: {units: unitless}
+  x:
+    field_order: [x, y, z, q_w, q_x, q_y, q_z,scale_x,scale_y,scale_z]
+    units: [meters, meters, meters, quaternion w, quaternion x, quaternion y, quaternion
+        z, meters, meters, meters]
+states:
+- w: 100000.0
+  x: [0.0, 0.5, -0.5, 1.0, 0.0, 0.0, 0.0, 0.5, 1.0, 0.2]
+- w: 100000.0
+  x: [1.0, 1.0, 1.0, 0.7071, 0.7071, 0.0, 0.0, 0.1, 0.4, 1.5]

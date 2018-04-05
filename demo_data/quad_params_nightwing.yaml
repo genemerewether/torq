@@ -1,0 +1,93 @@
+!!python/object/apply:collections.OrderedDict
+- - - m
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.697'
+  - - Ixx
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.003'
+  - - Iyy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.004'
+  - - Izz
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.006'
+  - - deltaDx
+    - estimated: 'True'
+      stddev: '0.00101638207376'
+      value: '-0.00471070719565'
+  - - deltaDy
+    - estimated: 'True'
+      stddev: '0.000269762486626'
+      value: '-0.000250855113701'
+  - - Dx
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.088'
+  - - Dy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.088'
+  - - Cq
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '2.93e-10'
+  - - k1
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '3.89444066342e-08'
+  - - k2
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '-2.05947941065e-05'
+  - - k4
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.02367'
+  - - Cdh
+    - estimated: 'True'
+      stddev: '0.0125772524341'
+      value: '0.017996964663'
+  - - Cdxy
+    - estimated: 'True'
+      stddev: '0.0148050637893'
+      value: '0.00467901304804'
+  - - Cdy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - Cdz
+    - estimated: 'True'
+      stddev: '0.0137410204314'
+      value: '0.0195569725445'
+  - - R0
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '1.0'
+  - - R1
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - R2
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - R3
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - tangoDx
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.088'
+  - - tangoDy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - tangoDz
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
