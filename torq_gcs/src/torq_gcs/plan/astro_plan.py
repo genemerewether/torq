@@ -119,8 +119,8 @@ class QRPolyTrajGUI(QWidget):
         self.all_corridors = True # IF false, then will only add corridors for segments in violation
         self.esdf_weight = 100.0
         self.replan = True
-
-	self.seed_times = None
+        
+        self.seed_times = None
 
         self.defer = defer
 

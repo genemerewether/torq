@@ -1007,6 +1007,7 @@ class traj_qr(trajectoryBase):
 
             if self.optimise_yaw_only and key != "yaw":
                 # Flag set to only consider yaw
+                print("getting path cost for yaw only")
                 continue
 
             # Loop for each segment
@@ -1053,6 +1054,8 @@ class traj_qr(trajectoryBase):
 
         # Compute cost and gradient
         path_cost, path_cost_grad, path_cost_curv = self.compute_path_cost_grad(c_leg_poly,doGrad=doGrad,doCurv=doCurv)
+
+        print("Path cost is: {}".format(path_cost))
 
         grad_mult = 1.0
         # # Zero out path cost for testing (uncomment below)
@@ -1404,7 +1407,7 @@ class traj_qr(trajectoryBase):
 
         return error
 
-    def optimise(self, c_leg_poly=None, mutate_iter=4,run_one_iteration=False,mutate_serial=-1,use_quadratic_line_search=None):
+    def optimise(self, c_leg_poly=None, mutate_iter=4,run_one_iteration=False,mutate_serial=-1,use_quadratic_line_search=False):
         """
         Main optimisation function. BFGS quasi-Newton gradient descent solution
         using a Armijo condition on a backtracking line search.
@@ -1476,6 +1479,7 @@ class traj_qr(trajectoryBase):
 
         # Compute cost gradient and step for path and constraints
         cost, cost_grad, cost_curv, cost_step = self.total_cost_grad_curv(c_leg_poly, doGrad=True,doCurv=self.curv_func,num_grad=True)
+        print("Cost at start of opt is: {}".format(cost))
 
         # Initialisation
         exitflag = False
@@ -1932,6 +1936,11 @@ class traj_qr(trajectoryBase):
 
         if step_coeff < 0.0:
             print("\nQuadratic line search gives step less than one. Just do backtracking line search\n")
+            poly_target, new_cost = self.line_search(cost,c_leg_poly,poly_step,cost_grad)
+            return poly_target, new_cost
+
+        if np.isnan(step_coeff):
+            print("\nQuadratic line search gives nan step. Just do backtracking line search\n")
             poly_target, new_cost = self.line_search(cost,c_leg_poly,poly_step,cost_grad)
             return poly_target, new_cost
 
