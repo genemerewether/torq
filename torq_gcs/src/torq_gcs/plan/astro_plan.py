@@ -119,8 +119,8 @@ class QRPolyTrajGUI(QWidget):
         self.all_corridors = True # IF false, then will only add corridors for segments in violation
         self.esdf_weight = 100.0
         self.replan = True
-
-	self.seed_times = None
+        
+        self.seed_times = None
 
         self.defer = defer
 
@@ -208,6 +208,8 @@ class QRPolyTrajGUI(QWidget):
                                             queue_size=1)
         self.pose_sub = rospy.Subscriber("pose_stamped_out", PoseStamped,
                                          self.callback_pose_stamped)
+        # self.setpoint_pub = rospy.Publisher("setpoint_unreal",PoseStamped, queue_size = 1)
+        # self.setpointCount = 0
 
         self.global_dict = global_dict
 
@@ -768,8 +770,37 @@ class QRPolyTrajGUI(QWidget):
         self.obstacle_worker.update_obstacles(self.qr_polytraj.constraint_list,
                                                        indices=[index])
 
-    def on_animate_eval_callback(self, t):
+    def get_state_at_time(self,t):
 
+        if self.qr_polytraj is None:
+            return
+
+        if self.ppoly_laps is None:
+            return
+            # self.ppoly_laps = self.qr_polytraj.create_callable_ppoly()
+            # print("ppoly computed")
+
+        stateOut = dict()
+
+        for key in self.ppoly_laps.keys():
+            
+            if key is not "yaw":
+                stateOut[key] = np.zeros(5)
+                stateOut[key][0] = self.ppoly_laps[key](t)
+                stateOut[key][1] = self.ppoly_laps[key].derivative()(t)
+                stateOut[key][2] = self.ppoly_laps[key].derivative().derivative()(t)
+                stateOut[key][3] = self.ppoly_laps[key].derivative().derivative().derivative()(t)
+                stateOut[key][4] = self.ppoly_laps[key].derivative().derivative().derivative().derivative()(t)
+            else:
+                stateOut[key] = np.zeros(3)
+                stateOut[key][0] = self.ppoly_laps[key](t)
+                stateOut[key][1] = self.ppoly_laps[key].derivative()(t)
+                stateOut[key][2] = self.ppoly_laps[key].derivative().derivative()(t)
+
+        return stateOut
+
+    def on_animate_eval_callback(self, t):
+        
         if self.qr_polytraj is None:
             return
 
@@ -813,6 +844,27 @@ class QRPolyTrajGUI(QWidget):
 
         # q, data = body_frame.body_frame_from_yaw_and_accel( yaw, acc_vec, out_format='quaternion',deriv_type='analyse')#,x_b_current = R[:,0],y_b_current = R[:,1] )
         q, data = body_frame.body_frame_from_yaw_and_accel( yaw, acc_vec, 'quaternion' )
+
+        # # fill message
+        # msg = PoseStamped()
+
+        # msg.header.seq = self.setpointCount
+        # self.setpointCount = self.setpointCount+1
+        # msg.header.stamp = rospy.get_rostime()
+        # msg.header.frame_id = 1
+
+        # msg.pose.position.x = x
+        # msg.pose.position.y = y
+        # msg.pose.position.z = z
+
+        # msg.pose.orientation.w = q[0]
+        # msg.pose.orientation.x = q[1]
+        # msg.pose.orientation.y = q[2]
+        # msg.pose.orientation.z = q[3]
+        
+        # # Publish message
+        # self.setpoint_pub.publish(msg)
+        # print("Publishing setpoint {}".format(msg))
 
         # print("R is {}".format(R))
         return (t_max, x, y, z, q[0], q[1], q[2], q[3])

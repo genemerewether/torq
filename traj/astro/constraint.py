@@ -201,9 +201,11 @@ class constraintBase(object):
             # Set one weighting for all segments, on the first iteration, based on the path cost
             if self.constraint_type is "esdf":
                 # cost_weight = 10**(np.round(np.log10(path_cost)*3.0)-np.round(np.log10(constr_cost)*0.9))# 198
-                cost_weight = 10**(np.round(np.log10(path_cost)*3.25)-np.round(np.log10(constr_cost)*0.6))# 344
+                # cost_weight = 10**(np.round(np.log10(path_cost)*3.25)-np.round(np.log10(constr_cost)*0.6))# 344
+                cost_weight = 10**(np.round(np.log10(path_cost)*1.5)-np.round(np.log10(constr_cost)*0.1))# Unreal
                 # import pdb; pdb.set_trace()
                 print("\n\nCustom Cost Weight is {}\n\n".format(cost_weight))
+                # import pdb; pdb.set_trace()
             elif self.constraint_type is "cylinder":
                 cost_weight = 10**(np.round(np.log10(path_cost)*0.5)-np.round(np.log10(constr_cost)*2.0))
                 print("\n\nCustom Cost Weight is {}\n\n".format(cost_weight))
