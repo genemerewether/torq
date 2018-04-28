@@ -204,7 +204,7 @@ class QRPolyTrajGUI(QWidget):
 
         self.ros_helper_thread.start()
 
-        self.polytraj_pub = rospy.Publisher('poly_traj_input', PolyTraj_msg,
+        self.polytraj_pub = rospy.Publisher('trajectory', PolyTraj_msg,
                                             queue_size=1)
         self.pose_sub = rospy.Subscriber("pose_stamped_out", PoseStamped,
                                          self.callback_pose_stamped)
