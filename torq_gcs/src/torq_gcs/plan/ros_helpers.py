@@ -577,18 +577,25 @@ class WaypointControlWorker(QObject):
             pose.position.x = waypoints['x'][0,i]
             pose.position.y = waypoints['y'][0,i]
             pose.position.z = waypoints['z'][0,i]
-            if acc_wp is None:
-                q = tf.transformations.quaternion_from_euler(0.0,0.0,waypoints['yaw'][0,i])
-                pose.orientation.w = q[3]
-                pose.orientation.x = q[0]
-                pose.orientation.y = q[1]
-                pose.orientation.z = q[2]
-            else:
-                q, data = body_frame.body_frame_from_yaw_and_accel( waypoints['yaw'][0,i], acc_wp[:,i], out_format='quaternion' ,deriv_type='yaw_only')
-                pose.orientation.w = q[0]
-                pose.orientation.x = q[1]
-                pose.orientation.y = q[2]
-                pose.orientation.z = q[3]
+            # if acc_wp is None:
+            #     q = tf.transformations.quaternion_from_euler(0.0,0.0,waypoints['yaw'][0,i])
+            #     pose.orientation.w = q[3]
+            #     pose.orientation.x = q[0]
+            #     pose.orientation.y = q[1]
+            #     pose.orientation.z = q[2]
+            # else:
+            # q, data = body_frame.body_frame_from_yaw_and_accel( waypoints['yaw'][0,i], acc_wp[:,i], out_format='quaternion' ,deriv_type='yaw_only')
+            # HACK QUICK FIX. Even cleaner would be to just set to a unit quaternion
+            # q = tf.transformations.quaternion_from_euler(0.0,0.0,waypoints['yaw'][0,i])
+            # pose.orientation.w = q[0]
+            # pose.orientation.x = q[1]
+            # pose.orientation.y = q[2]
+            # pose.orientation.z = q[3]
+            
+            pose.orientation.w = 1.0
+            pose.orientation.x = 0.0
+            pose.orientation.y = 0.0
+            pose.orientation.z = 0.0
             self.marker_server.setPose( str(i)+self.qr_type, pose )
 
             self.marker_server.applyChanges()

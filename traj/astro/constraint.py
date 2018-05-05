@@ -861,6 +861,8 @@ class nurbs_constraint(constraintBase):
 
         self.nSampPoints = 55
 
+        self.minDistLimit = 1.0 # cap beyond which negative distances are set to constant and zero gradient
+
     def cost_grad_curv(self, state, seg = 0, doGrad=True, doCurv=False):
         """
         Computes cost, and cost gradient for a nurbs constraint. A dictionary for each dimension
@@ -923,6 +925,13 @@ class nurbs_constraint(constraintBase):
         grad = distAndGrad[1:,:]
 
         dist -= self.quad_buffer
+
+        # Cap negative costs
+        indexList = dist < -self.minDistLimit - self.inflate_buffer
+        dist[indexList] = -self.minDistLimit - self.inflate_buffer
+        # Set grad to zero
+        grad[:,indexList] = 0.0
+
 
         if self.sum_func:
             # Sum all costs

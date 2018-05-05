@@ -1085,6 +1085,7 @@ class traj_qr(trajectoryBase):
             self.temp_state = state
 
             # Constraint costs
+
             for i in range(np.size(self.constraint_list)):
 
                 # Compute cost for each constraint
