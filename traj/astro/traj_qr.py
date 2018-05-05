@@ -72,6 +72,8 @@ class traj_qr(trajectoryBase):
         self.fig = None
         self.ax = None
 
+        self.mutation_strength = 5.0
+
         """ Costs """
         if costs is None:
             costs = dict()
@@ -2239,7 +2241,7 @@ class traj_qr(trajectoryBase):
         """
 
         # Placeholder
-        mutation_strength = 5.0
+        mutation_strength = self.mutation_strength
 
         # initialise list
         c_leg_mutate_list = [c_leg_poly.copy(),]
