@@ -229,7 +229,6 @@ class constraintBase(object):
         return constr_cost, constr_cost_grad, constr_cost_curv
 
 
-
 class ellipsoid_constraint(constraintBase):
 
     def __init__(self,weight,keep_out,der,x0,A,rot_mat,dynamic_weighting=False,doCurv=False,sum_func = True,custom_weighting=False):
@@ -676,7 +675,6 @@ class cylinder_constraint(constraintBase):
         return cross_out
 
 
-
 class esdf_constraint(constraintBase):
 
     def __init__(self,weight,esdf,quad_buffer=0.0,inflate_buffer = 0.0,
@@ -829,6 +827,150 @@ class esdf_constraint(constraintBase):
             # print("grad at max is {}".format(grad_out))
 
         return max_cost, grad_out, curv, np.atleast_1d(max_ID)
+
+
+class nurbs_constraint(constraintBase):
+
+    def __init__(self,weight,nurbs,quad_buffer=0.0,inflate_buffer = 0.0,
+    dynamic_weighting=False,sum_func=False,custom_weighting=True):
+        """
+
+        """
+
+        # Initialise parent case class
+        super(nurbs_constraint,self).__init__(weight,dynamic_weighting=dynamic_weighting,custom_weighting=custom_weighting)
+
+        self.constraint_type = "nurbs"
+
+        self.seg_feasible = True
+
+        self.nurbs = nurbs
+
+        self.quad_buffer = quad_buffer + inflate_buffer
+        self.inflate_buffer = inflate_buffer
+        print("quad_buffer for NURBS is {}".format(quad_buffer))
+
+        if self.keep_out:
+            self.in_out_scale = -1
+        else:
+            self.in_out_scale = 1
+
+        self.cost_type = "squared"
+
+        self.sum_func = sum_func
+
+        self.nSampPoints = 55
+
+    def cost_grad_curv(self, state, seg = 0, doGrad=True, doCurv=False):
+        """
+        Computes cost, and cost gradient for a nurbs constraint. A dictionary for each dimension
+
+        Cost gradient and curvature are returned for use in optimisation steps (e.g. linesearch)
+
+        Args:
+            state: The trajectory to evaluate for obstacle costs. np.array with dimensions (nder,nsamp,nseg).
+                    A dict for each dimension
+            seg:    The segment to calculate the cost and gradient for
+            doGrad: boolean to select whether or not to evaluate the gradient
+            doCurv: boolean to select whether or not to evaluate the curvature
+
+        Uses:
+            self.
+            nurbs: A stored nurbs object of the cans::Object3D format
+
+        Outputs:
+            cost: the cost for the constraint (single number)
+            grad: the cost gradient for the constraint. A dict for each dimension,
+                            in each an np.array of length N (number of coefficients for each dimension)
+            curv: the cost curvature for the constraint. A dict for each dimension,
+                            in each an np.array of length N (number of coefficients for each dimension)
+            max_ID: Index of the maximum violation
+
+        """
+
+        # Number of samples in a segment
+        nder = state['x'].shape[0]
+        nsamp = state['x'].shape[1]
+
+        # Initialise grad: df/dx at the maximum, so for each dimension is an array of the number of derivatives (x includes the derivatives)
+        # grad_out = dict(x=np.zeros((nder,1)),y=np.zeros((nder,1)),z=np.zeros((nder,1)),yaw=np.zeros((nder,1)))
+        # curv = dict(x=np.zeros((nder,1)),y=np.zeros((nder,1)),z=np.zeros((nder,1)),yaw=np.zeros((nder,1)))
+
+        grad_out = dict(x=np.zeros((nder,nsamp)),y=np.zeros((nder,nsamp)),z=np.zeros((nder,nsamp)),yaw=np.zeros((nder,nsamp)))
+        curv = dict(x=np.zeros((nder,3,nsamp)),y=np.zeros((nder,3,nsamp)),z=np.zeros((nder,3,nsamp)),yaw=np.zeros((nder,3,nsamp)))
+
+        # get x, y, z trajectories
+        x = state['x'][0,:,seg]
+        y = state['y'][0,:,seg]
+        z = state['z'][0,:,seg]
+        
+
+        # Create query points
+        query = np.zeros([3,x.size],dtype='single')
+        distAndGrad = np.zeros([4,np.shape(query)[1]],dtype='single')
+        # TODO(BM) check data types
+
+        # load in x, y, z points
+        query[0,:] = np.around(x,4)
+        query[1,:] = np.around(y,4)
+        query[2,:] = np.around(z,4)
+
+        # Query the object to get the distance
+        distAndGrad = self.nurbs.getBatchDistanceFromPointsToSurface(query, self.nSampPoints, self.nSampPoints)
+        # TODO (BM) how to select the number of points to take from the object
+        
+        dist = distAndGrad[0,:]
+        grad = distAndGrad[1:,:]
+
+        dist -= self.quad_buffer
+
+        if self.sum_func:
+            # Sum all costs
+            # dist[-dist < 0.0] = 0.0
+            max_cost = np.sum(-dist)
+            max_check = np.amax(-dist) - self.inflate_buffer
+            max_ID = np.where(dist>-np.inf)[0]
+            # max_ID = np.where(-dist>0.0)[0]
+        else:
+            # Maximum violation
+            max_cost = np.amax(-dist) # Negative as violations are negative distances
+            max_check = max_cost - self.inflate_buffer
+            # cost_tmp = -np.sign(dist)*dist**2
+            max_ID = np.where((-dist)==max_cost)[0][0]
+
+        # Check non-inflated feasibility
+        if max_check <= 0:
+            self.seg_feasible = True # TODO - do this for the other constraints
+            # print("ESDF Constraint in segment is feasible. Distance is {} (m), gradient is: {}".format(max_check, -grad[:,max_ID]))
+            print("NURBS Constraint in segment is feasible. Distance is {} (m)".format(max_check))
+        else:
+            print("NURBS Constraint in segment is NOT feasible. Distance is {} (m)".format(max_check))
+            self.seg_feasible = False
+
+        if max_cost <= 0 and not self.sum_func:
+            # Constraint not active - no need to compute gradient.
+            # Set max ID to negative as a flag
+            # print("Max esdf cost, {}, is < 0".format(max_cost))
+            max_ID = -1
+            max_cost = 0.0
+            return max_cost, grad_out, curv, np.atleast_1d(max_ID)
+        else:
+            # max_cost = max_cost
+            # print("Max cost from ESDF is {}\n".format(max_cost))
+            pass
+
+
+        # Compute the gradient
+        if doGrad:
+            # print("doing grad max_cost is {}".format(max_cost))
+            grad_tmp = -grad[:,max_ID] # TODO (BM) Check the sign of the gradient
+            grad_out['x'][0,max_ID] = grad_tmp[0,:]
+            grad_out['y'][0,max_ID] = grad_tmp[1,:]
+            grad_out['z'][0,max_ID] = grad_tmp[2,:]
+            # print("grad at max is {}".format(grad_out))
+
+        return max_cost, grad_out, curv, np.atleast_1d(max_ID)
+
 
 def main():
     from astro import traj_qr

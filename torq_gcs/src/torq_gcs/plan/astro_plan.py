@@ -118,6 +118,7 @@ class QRPolyTrajGUI(QWidget):
         self.corridor_weight = 1e-4
         self.all_corridors = True # IF false, then will only add corridors for segments in violation
         self.esdf_weight = 100.0
+        self.nurbs_weight = 100.0
         self.replan = True
         
         self.seed_times = None
@@ -1226,6 +1227,7 @@ class QRPolyTrajGUI(QWidget):
                 qr_p_out = self.qr_polytraj
                 # Remove esdf constraints
                 qr_p_out.remove_esdf_constraint()
+                qr_p_out.remove_nurbs_constraint()
 
                 pickle.dump(qr_p_out, f, 2 )
         except Exception as e:
@@ -1578,6 +1580,23 @@ class QRPolyTrajGUI(QWidget):
         if self.qr_polytraj is not None:
             print("loading esdf obstacle")
             self.load_esdf_obstacle()
+
+    def load_nurbs_obstacle(self,nurbs,sum_func=True,custom_weighting=True):
+        
+        if self.qr_polytraj is None:
+            print("Need to have loaded an trajectory")
+            return
+
+        self.qr_polytraj.exit_on_feasible = True
+
+        self.qr_polytraj.add_nurbs_constraint(nurbs, self.nurbs_weight, self.quad_buffer,self.inflate_buffer,dynamic_weighting=False, sum_func = sum_func,custom_weighting=custom_weighting)
+
+        if not self.defer:
+            self.qr_polytraj.run_astro(replan=True)
+            self.update_path_markers()
+            acc_wp = self.get_accel_at_waypoints("main")
+            self.interactive_marker_worker.make_controls(self.qr_polytraj.waypoints)
+            self.interactive_marker_worker.update_controls(self.qr_polytraj.waypoints,acc_wp = acc_wp)
 
     def create_two_waypoints(self):
         waypoints = dict()
@@ -2177,6 +2196,9 @@ class QRPolyTrajGUI(QWidget):
 
         self.qr_polytraj.set_constraint_weight(self.esdf_weight,"esdf")
 
+    def on_nurbs_weight_update_button_clicked(self):
+
+        self.qr_polytraj.set_constraint_weight(self.nurbs_weight,"nurbs")
 
 
 

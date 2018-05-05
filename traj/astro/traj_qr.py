@@ -2360,6 +2360,28 @@ class traj_qr(trajectoryBase):
             self.esdf_feasibility_check = True
         self.constraint_list.append((constraint.esdf_constraint(weight,esdf,quad_buffer,inflate_buffer,dynamic_weighting=dynamic_weighting,sum_func=sum_func,feasibility_checker=feasibility_checker,custom_weighting=custom_weighting)))
 
+    def remove_nurbs_constraint(self):
+
+        i = 0
+
+        while i < np.size(self.constraint_list):
+            if self.constraint_list[i].constraint_type is "nurbs":
+                self.constraint_list.pop(i)
+            else:
+                i = i + 1
+
+    def add_nurbs_constraint(self,nurbs,weight=1e9,quad_buffer=0.0,inflate_buffer=0.0,dynamic_weighting=False,sum_func=False,custom_weighting=True):
+        """
+        Add a constriant that uses an nurbs map
+        the nurbs is of the cans::Object3D
+        Adds a constraint for a single object
+        """
+        # Set flag to exit when a feasible trajectory is obtained
+        self.exit_on_feasible = True
+        self.feasible = False
+
+        self.constraint_list.append((constraint.nurbs_constraint(weight,nurbs,quad_buffer,inflate_buffer,dynamic_weighting=dynamic_weighting,sum_func=sum_func,custom_weighting=custom_weighting)))
+
     def set_constraint_weight(self,weight,constraint_type):
 
         for i in range(np.size(self.constraint_list)):
