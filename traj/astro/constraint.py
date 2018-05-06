@@ -135,6 +135,7 @@ class constraintBase(object):
                 cost_weight = 1.0 # Temporary - set at the end
             else:
                 cost_weight = self.weight
+                
 
             # Track overall feasibility for the constraint
             feasible = feasible and self.seg_feasible
@@ -836,7 +837,6 @@ class nurbs_constraint(constraintBase):
         """
 
         """
-
         # Initialise parent case class
         super(nurbs_constraint,self).__init__(weight,dynamic_weighting=dynamic_weighting,custom_weighting=custom_weighting)
 
@@ -861,7 +861,7 @@ class nurbs_constraint(constraintBase):
 
         self.nSampPoints = 55
 
-        self.minDistLimit = 1.0 # cap beyond which negative distances are set to constant and zero gradient
+        self.minDistLimit = 0.2 # cap beyond which negative distances are set to constant and zero gradient
 
     def cost_grad_curv(self, state, seg = 0, doGrad=True, doCurv=False):
         """
@@ -925,14 +925,15 @@ class nurbs_constraint(constraintBase):
         grad = distAndGrad[1:,:]
 
         dist -= self.quad_buffer
-
+        
         # Cap negative costs
         indexList = dist < -self.minDistLimit - self.inflate_buffer
-        dist[indexList] = -self.minDistLimit - self.inflate_buffer
+        dist[indexList] = 0.0
         # Set grad to zero
         grad[:,indexList] = 0.0
 
-
+        print("Distances are: {}".format(dist))
+    
         if self.sum_func:
             # Sum all costs
             # dist[-dist < 0.0] = 0.0
@@ -972,10 +973,15 @@ class nurbs_constraint(constraintBase):
         # Compute the gradient
         if doGrad:
             # print("doing grad max_cost is {}".format(max_cost))
-            grad_tmp = -grad[:,max_ID] # TODO (BM) Check the sign of the gradient
-            grad_out['x'][0,max_ID] = grad_tmp[0,:]
-            grad_out['y'][0,max_ID] = grad_tmp[1,:]
-            grad_out['z'][0,max_ID] = grad_tmp[2,:]
+            grad_tmp = -grad[:,max_ID]
+            if np.size(max_ID)>1:
+                grad_out['x'][0,max_ID] = grad_tmp[0,:]
+                grad_out['y'][0,max_ID] = grad_tmp[1,:]
+                grad_out['z'][0,max_ID] = grad_tmp[2,:]
+            else:
+                grad_out['x'][0,max_ID] = grad_tmp[0]
+                grad_out['y'][0,max_ID] = grad_tmp[1]
+                grad_out['z'][0,max_ID] = grad_tmp[2]
             # print("grad at max is {}".format(grad_out))
 
         return max_cost, grad_out, curv, np.atleast_1d(max_ID)

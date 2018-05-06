@@ -1061,7 +1061,7 @@ class traj_qr(trajectoryBase):
         # if np.size(self.constraint_list) is not 0:# and False:
         #     path_cost = 0.0
         #     grad_mult = 0.0
-
+        
         # Add to total cost
         cost = path_cost
         cost_grad = path_cost_grad
@@ -1204,7 +1204,7 @@ class traj_qr(trajectoryBase):
                 self.feasible = False
 
         # self.first_in_iteration = False
-
+        
         return cost, cost_grad, cost_curv, cost_step
 
     def stack_vector(self,unstacked_vec):
