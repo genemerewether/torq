@@ -101,10 +101,10 @@ class constraintBase(object):
         constr_cost_grad = dict()
         constr_grad_check = dict()
         constr_cost_curv = dict()
-        constr_cost = 0.0;
-        constr_cost_sqrt = 0.0;
+        constr_cost = 0.0
+        constr_cost_sqrt = 0.0
 
-        feasible = True;
+        feasible = True
 
         if path_cost == 0.0:
             self.dynamic_weighting = False
@@ -209,6 +209,10 @@ class constraintBase(object):
                 # import pdb; pdb.set_trace()
             elif self.constraint_type is "cylinder":
                 cost_weight = 10**(np.round(np.log10(path_cost)*0.5)-np.round(np.log10(constr_cost)*2.0))
+                print("\n\nCustom Cost Weight is {}\n\n".format(cost_weight))
+            elif self.constraint_type is "nurbs":
+                cost_weight = 10**(np.round(np.log10(path_cost)*2.2)-np.round(np.log10(constr_cost)*1.0)) #for vel = 0.01 Unreal
+                # cost_weight = 10**(np.round(np.log10(path_cost)*3.0)-np.round(np.log10(constr_cost)*1.0)) # FOr vel = 0.07 unreal
                 print("\n\nCustom Cost Weight is {}\n\n".format(cost_weight))
             else:
                 cost_weight = self.weight
@@ -863,6 +867,8 @@ class nurbs_constraint(constraintBase):
 
         self.minDistLimit = 0.2 # cap beyond which negative distances are set to constant and zero gradient
 
+        self.maxDist = 5.0 # Maximum distance from the surface to have a cost
+
     def cost_grad_curv(self, state, seg = 0, doGrad=True, doCurv=False):
         """
         Computes cost, and cost gradient for a nurbs constraint. A dictionary for each dimension
@@ -918,7 +924,7 @@ class nurbs_constraint(constraintBase):
         query[2,:] = np.around(z,4)
 
         # Query the object to get the distance
-        distAndGrad = self.nurbs.getBatchDistanceFromPointsToSurface(query, self.nSampPoints, self.nSampPoints)
+        distAndGrad = -self.nurbs.getBatchDistanceFromPointsToSurface(query, self.nSampPoints, self.nSampPoints)
         # TODO (BM) how to select the number of points to take from the object
         
         dist = distAndGrad[0,:]
@@ -928,6 +934,12 @@ class nurbs_constraint(constraintBase):
         
         # Cap negative costs
         indexList = dist < -self.minDistLimit - self.inflate_buffer
+        dist[indexList] = 0.0
+        # Set grad to zero
+        grad[:,indexList] = 0.0
+
+        # Cap large distances
+        indexList = dist > self.maxDist
         dist[indexList] = 0.0
         # Set grad to zero
         grad[:,indexList] = 0.0
