@@ -203,7 +203,7 @@ class constraintBase(object):
             if self.constraint_type is "esdf":
                 # cost_weight = 10**(np.round(np.log10(path_cost)*3.0)-np.round(np.log10(constr_cost)*0.9))# 198
                 # cost_weight = 10**(np.round(np.log10(path_cost)*3.25)-np.round(np.log10(constr_cost)*0.6))# 344
-                cost_weight = 10**(np.round(np.log10(path_cost)*1.5)-np.round(np.log10(constr_cost)*5.0))# Unreal
+                cost_weight = 10**(np.round(np.log10(path_cost)*1.5)-np.round(np.log10(constr_cost)*1.0))# Unreal
                 # import pdb; pdb.set_trace()
                 print("\n\nCustom Cost Weight is {}\n\n".format(cost_weight))
                 # import pdb; pdb.set_trace()
@@ -211,7 +211,8 @@ class constraintBase(object):
                 cost_weight = 10**(np.round(np.log10(path_cost)*0.5)-np.round(np.log10(constr_cost)*2.0))
                 print("\n\nCustom Cost Weight is {}\n\n".format(cost_weight))
             elif self.constraint_type is "nurbs":
-                cost_weight = 10**(np.round(np.log10(path_cost)*2.2)-np.round(np.log10(constr_cost)*1.0)) #for vel = 0.01 Unreal
+                cost_weight = 10**(np.round(np.log10(path_cost)*2.6)-np.round(np.log10(constr_cost)*1.2)) #for vel = 0.01 Unreal
+                # import pdb; pdb.set_trace()
                 # cost_weight = 10**(np.round(np.log10(path_cost)*3.0)-np.round(np.log10(constr_cost)*1.0)) # FOr vel = 0.07 unreal
                 print("\n\nCustom Cost Weight is {}\n\n".format(cost_weight))
             else:
@@ -865,9 +866,9 @@ class nurbs_constraint(constraintBase):
 
         self.nSampPoints = 55
 
-        self.minDistLimit = 0.2 # cap beyond which negative distances are set to constant and zero gradient
+        self.minDistLimit = 0.1 # cap beyond which negative distances are set to constant and zero gradient
 
-        self.maxDist = 5.0 # Maximum distance from the surface to have a cost
+        self.maxDist = 2.0 # Maximum distance from the surface to have a cost
 
     def cost_grad_curv(self, state, seg = 0, doGrad=True, doCurv=False):
         """
