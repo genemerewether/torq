@@ -61,8 +61,6 @@ Visualization Manager:
           Value: true
         local_origin:
           Value: false
-        minsnap_animation:
-          Value: true
         starting_body:
           Value: false
         starting_cam:
@@ -76,17 +74,16 @@ Visualization Manager:
       Show Names: true
       Tree:
         local_origin:
-          minsnap_animation:
-            {}
-          world:
-            body:
-              cam_truth:
-                {}
-            cam_optical:
+          {}
+        world:
+          body:
+            cam_truth:
               {}
-            starting_body:
-              starting_cam:
-                {}
+          cam_optical:
+            {}
+          starting_body:
+            starting_cam:
+              {}
       Update Interval: 0
       Value: true
     - Class: rviz/Marker
