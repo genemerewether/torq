@@ -1,0 +1,93 @@
+!!python/object/apply:collections.OrderedDict
+- - - m
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.697'
+  - - Ixx
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.003'
+  - - Iyy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.004'
+  - - Izz
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.006'
+  - - deltaDx
+    - estimated: 'True'
+      stddev: '2.29744254937e-06'
+      value: '-9.2788948024e-05'
+  - - deltaDy
+    - estimated: 'True'
+      stddev: '2.31397414617e-06'
+      value: '-0.000123524986107'
+  - - Dx
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.088'
+  - - Dy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.088'
+  - - Cq
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '1.44e-10'
+  - - k1
+    - estimated: 'True'
+      stddev: '9.2105294082e-10'
+      value: '2.53958612849e-08'
+  - - k2
+    - estimated: 'True'
+      stddev: '1.03163612177e-06'
+      value: '-6.53547870016e-06'
+  - - k4
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.02367'
+  - - Cdh
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - Cdxy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - Cdy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - Cdz
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - R0
+    - estimated: 'True'
+      stddev: '8.60566676802e-05'
+      value: '0.999939148567'
+  - - R1
+    - estimated: 'True'
+      stddev: '0.00235020288024'
+      value: '-6.00799670468e-05'
+  - - R2
+    - estimated: 'True'
+      stddev: '0.0022475414069'
+      value: '-0.0110315707446'
+  - - R3
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - tangoDx
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.08'
+  - - tangoDy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - tangoDz
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'

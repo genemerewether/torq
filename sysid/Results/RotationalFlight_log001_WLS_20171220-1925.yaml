@@ -1,0 +1,93 @@
+!!python/object/apply:collections.OrderedDict
+- - - m
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.697'
+  - - Ixx
+    - estimated: 'True'
+      stddev: '0.000171205250874'
+      value: '0.00300131250366'
+  - - Iyy
+    - estimated: 'True'
+      stddev: '0.000243446704837'
+      value: '0.00451216092624'
+  - - Izz
+    - estimated: 'True'
+      stddev: '0.000303544165365'
+      value: '0.00365883502644'
+  - - deltaDx
+    - estimated: 'True'
+      stddev: '0.000307433436292'
+      value: '0.00133955562006'
+  - - deltaDy
+    - estimated: 'True'
+      stddev: '0.000168437754537'
+      value: '-0.000182854412315'
+  - - Dx
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0875'
+  - - Dy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0875'
+  - - Cq
+    - estimated: 'True'
+      stddev: '4.55289519288e-11'
+      value: '2.92159784467e-10'
+  - - k1
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '2.49305594673e-08'
+  - - k2
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '-5.93890447122e-06'
+  - - k4
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.02367'
+  - - Cdh
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.015'
+  - - Cdxy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.006'
+  - - Cdy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - Cdz
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.05'
+  - - R0
+    - estimated: 'True'
+      stddev: '0.000527795453891'
+      value: '0.996730485986'
+  - - R1
+    - estimated: 'True'
+      stddev: '0.00362317337343'
+      value: '-0.0231699531119'
+  - - R2
+    - estimated: 'True'
+      stddev: '0.00291444153971'
+      value: '-0.0124686503336'
+  - - R3
+    - estimated: 'True'
+      stddev: '0.00683270970197'
+      value: '0.0763938763128'
+  - - tangoDx
+    - estimated: 'True'
+      stddev: '0.00302275498031'
+      value: '0.0899700595233'
+  - - tangoDy
+    - estimated: 'True'
+      stddev: '0.00338983871469'
+      value: '0.00877530607166'
+  - - tangoDz
+    - estimated: 'True'
+      stddev: '0.00404945571456'
+      value: '0.0215402261107'

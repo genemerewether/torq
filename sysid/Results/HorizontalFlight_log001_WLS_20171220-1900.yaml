@@ -1,0 +1,93 @@
+!!python/object/apply:collections.OrderedDict
+- - - m
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.697'
+  - - Ixx
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.003'
+  - - Iyy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.004'
+  - - Izz
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.006'
+  - - deltaDx
+    - estimated: 'True'
+      stddev: '0.000808850219491'
+      value: '-0.0028746456349'
+  - - deltaDy
+    - estimated: 'True'
+      stddev: '0.000260586748639'
+      value: '-0.000987600102938'
+  - - Dx
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.088'
+  - - Dy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.088'
+  - - Cq
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '2.2e-10'
+  - - k1
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '2.53958612849e-08'
+  - - k2
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '-6.53547870016e-06'
+  - - k4
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.02367'
+  - - Cdh
+    - estimated: 'True'
+      stddev: '0.00540308501093'
+      value: '0.0156022234486'
+  - - Cdxy
+    - estimated: 'True'
+      stddev: '0.00509410004617'
+      value: '0.00808866659552'
+  - - Cdy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - Cdz
+    - estimated: 'True'
+      stddev: '0.0100474559932'
+      value: '0.0488732970667'
+  - - R0
+    - estimated: 'True'
+      stddev: '0.000981450094145'
+      value: '0.995170311775'
+  - - R1
+    - estimated: 'True'
+      stddev: '0.00431582960495'
+      value: '-0.0617515801118'
+  - - R2
+    - estimated: 'True'
+      stddev: '0.00641105661266'
+      value: '-0.0148027889714'
+  - - R3
+    - estimated: 'True'
+      stddev: '0.00725818872357'
+      value: '0.0748576672985'
+  - - tangoDx
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.088'
+  - - tangoDy
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
+  - - tangoDz
+    - estimated: 'False'
+      stddev: '0.0'
+      value: '0.0'
