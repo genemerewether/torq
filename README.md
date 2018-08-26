@@ -1,7 +1,23 @@
-# torq
+# Summary
+This branch of the repository presents the implementation of three trajectory optimization algorithms that were used in the tests presented in the Robotics and Automation Letter: "Comparison of Trajectory Optimization Algorithms for High-Speed Quadrotor Flight Near Obstacles". The paper presents a comparative analysis between three algorithms for optimising quadrotor trajectories for high-speed flight indoors, near to obstacles. 
+
+Below and in the folders are also links to the datasets used for the tests, including waypoint files and obstacle representations. 
+
+The code presented here includes a GUI for planning, observing and manipulating trajectories. 
+
+The abstract of the paper is included below, before a summary of the inclusions to the torq repository for the planner comparison and then installation and running instructions. 
+
+-- Repo notes:
+
 Ground control station and optimization code from Tango on Quadrotors project - NTR 50759
 
 Branch - planner_comparison_2018_07 - to include data and code for running the comparison of trajectory planning algorithms as presented in "Comparison of Trajectory Optimization Algorithms for High-Speed Quadrotor Flight Near Obstacles"
+
+# Abstract of paper
+For autonomous quadrotors to be used for applications such as delivery, first responder search, and inspection, there is a need to fly near obstacles, especially in urban and indoor environments. There is also benefit to fly at high speeds, to complete the given task in a short period of time. A key challenge in enabling these capabilities is to quickly plan trajectories that are safe, collision-free, and dynamically feasible. Dynamic feasibility in this context means that the trajectory can be accurately tracked in flight: a critical requirement when flying near to obstacles. 
+It is important to understand the relative strengths and weaknesses of trajectory planning algorithms; hence we compare three state-of-the-art algorithms (Bry et al. 2015, Campos-Macias et al. 2017 and Chamitoff et al. 2018) with both a set of planning scenarios and an assessment of performance when the trajectories are tracked in flight. 
+We introduce a combination of the work of Campos-Macias et al. with Bry et al., which is shown to perform well for slow speed, conservative trajectories. The algorithm from Bry et al. is implemented and shown to be the best for higher speed trajectories with relatively large amounts of open space. An adaptation of the algorithm from Chamitoff et al. for quadrotor applications, as presented here, is the best for high-speed trajectories in tight confines and relaxes the requirement for a known collision-free path to seed the optimization.
+
 
 # Additions for planner comparison
 The additions are in the planner_comparison folder. 
